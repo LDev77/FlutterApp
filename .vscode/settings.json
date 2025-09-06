@@ -1,0 +1,19 @@
+{
+  "dart.openDevTools": "flutter",
+  "dart.previewFlutterUiGuides": true,
+  "dart.previewFlutterUiGuidesCustomTracking": true,
+  "dart.flutterOutline": true,
+  "dart.hotReloadOnSave": "always",
+  "dart.debugExtensionBackendProtocol": "ws",
+  "dart.devToolsTheme": "dark",
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "dart.lineLength": 120,
+  "editor.rulers": [120],
+  "editor.formatOnSave": true,
+  "dart.enableSdkFormatter": true,
+  "files.associations": {
+    "*.dart": "dart"
+  }
+}
