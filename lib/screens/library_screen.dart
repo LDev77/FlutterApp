@@ -4,6 +4,7 @@ import '../widgets/optimized_image.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
 import 'story_reader_screen.dart';
+import 'infiniteerium_purchase_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -73,29 +74,52 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 },
               ),
               
-              // Token counter
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.purple, width: 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('🪙', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_userTokens',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+              // Token counter (tappable to buy more)
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const InfiniteeriumPurchaseScreen(),
                     ),
-                  ],
+                  ).then((_) {
+                    // Refresh token count when returning from purchase screen
+                    _loadUserTokens();
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.purple, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        color: Colors.purple,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_userTokens',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.add_circle_outline,
+                        color: Colors.purple.withOpacity(0.7),
+                        size: 16,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
