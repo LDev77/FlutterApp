@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/story.dart';
 import '../models/turn_data.dart';
+import '../models/api_models.dart';
 import '../widgets/cover_page.dart';
 import '../widgets/turn_page_content.dart';
 import '../widgets/input_cluster.dart';
 import '../services/state_manager.dart';
 import '../services/sample_data.dart';
+import '../services/secure_api_service.dart';
+import '../services/secure_auth_manager.dart';
 
 class StoryReaderScreen extends StatefulWidget {
   final Story story;
@@ -32,23 +35,84 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     _loadStoryPlaythrough();
   }
 
-  void _loadStoryPlaythrough() {
-    // For now, load sample data for Test Story
+  Future<void> _loadStoryPlaythrough() async {
+    // 1) ALWAYS start with local storage first
     if (widget.story.id == 'Test Story') {
+      // Test Story uses sample data system (keep existing functionality)
       _playthrough = SampleData.createTestStoryPlaythrough();
-      print('Loaded playthrough with ${_playthrough!.turnHistory.length} turns');
-      // Start at the first turn (page 1) instead of the most recent
+      print('Loaded TEST story with ${_playthrough!.turnHistory.length} turns');
       setState(() {
-        _currentPage = 1; // Start at first turn page
+        _currentPage = 1;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _pageController.animateToPage(
-          1, // Go to first turn page
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
+        _pageController.animateToPage(1, 
+          duration: const Duration(milliseconds: 300), 
+          curve: Curves.easeInOut);
       });
+      return;
     }
+
+    // For all other stories, check local storage first
+    final savedState = IFEStateManager.getStoryState(widget.story.id);
+    
+    if (savedState != null) {
+      // Found local data - convert to StoryPlaythrough format
+      print('Found local storage for ${widget.story.id}');
+      _playthrough = _convertSimpleStateToPlaythrough(savedState);
+    } else {
+      // No local data - call GET /play to populate
+      print('No local storage for ${widget.story.id} - calling GET /play');
+      try {
+        final response = await SecureApiService.getStoryIntroduction(widget.story.id);
+        
+        // Convert API response to local storage format
+        final simpleState = SimpleStoryState.fromPlayResponse(response);
+        await IFEStateManager.saveStoryState(widget.story.id, simpleState);
+        
+        // Convert to StoryPlaythrough format for UI
+        _playthrough = _convertSimpleStateToPlaythrough(simpleState);
+        print('Populated local storage from API for ${widget.story.id}');
+      } catch (e) {
+        print('Failed to load story ${widget.story.id}: $e');
+        _showErrorDialog('Unable to load story', 
+          'Could not connect to the server. Please check your internet connection and try again.');
+        return;
+      }
+    }
+
+    // Navigate to the last turn (where input cluster is)
+    final lastTurnIndex = _playthrough!.turnHistory.length;
+    setState(() {
+      _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
+    });
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pageController.animateToPage(
+        lastTurnIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  // Convert SimpleStoryState to StoryPlaythrough format for UI compatibility
+  StoryPlaythrough _convertSimpleStateToPlaythrough(SimpleStoryState simpleState) {
+    final turnData = TurnData(
+      narrativeMarkdown: simpleState.narrative,
+      userInput: '', // No previous input for current turn
+      availableOptions: simpleState.options,
+      encryptedGameState: simpleState.storedState,
+      timestamp: DateTime.now(),
+      turnNumber: 1,
+    );
+
+    return StoryPlaythrough(
+      storyId: widget.story.id,
+      turnHistory: [turnData],
+      currentTurnIndex: 0,
+      lastTurnDate: DateTime.now(),
+      numberOfTurns: 1,
+    );
   }
 
   @override
@@ -271,19 +335,155 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     final input = _inputController.text.trim();
     if (input.isEmpty) return;
 
-    // TODO: Send to API and process response
-    print('User input: $input');
+    // For Test Story, keep existing functionality
+    if (widget.story.id == 'Test Story') {
+      _handleTestStoryInput(input);
+      return;
+    }
 
-    // Clear input and unfocus
+    // For API stories, implement the new turn flow
+    _handleApiStoryInput(input);
+  }
+
+  void _handleTestStoryInput(String input) {
+    print('Test story input: $input');
+    _inputController.clear();
+    _inputFocusNode.unfocus();
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Test Story Sent: $input'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _handleApiStoryInput(String input) async {
+    print('API story input: $input');
+    
+    // Clear input and unfocus immediately
     _inputController.clear();
     _inputFocusNode.unfocus();
 
-    // Show some feedback
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Sent: $input'),
-        duration: const Duration(seconds: 2),
-      ),
+    // 5) Move user to new UX page with blue input box (no input cluster)
+    final currentTurn = _playthrough!.turnHistory.last;
+    final newTurnWithInput = TurnData(
+      narrativeMarkdown: '', // Will be populated when response comes back
+      userInput: input, // User's input goes in blue box
+      availableOptions: [], // Will be populated from response
+      encryptedGameState: currentTurn.encryptedGameState,
+      timestamp: DateTime.now(),
+      turnNumber: currentTurn.turnNumber + 1,
+    );
+
+    // Add the new turn and navigate to it
+    final updatedHistory = List<TurnData>.from(_playthrough!.turnHistory)..add(newTurnWithInput);
+    _playthrough = StoryPlaythrough(
+      storyId: _playthrough!.storyId,
+      turnHistory: updatedHistory,
+      currentTurnIndex: updatedHistory.length - 1,
+      lastTurnDate: DateTime.now(),
+      numberOfTurns: updatedHistory.length,
+    );
+
+    setState(() {
+      _currentPage = _playthrough!.turnHistory.length; // Move to new page
+    });
+
+    // Animate to the new page (with blue input box, no input cluster)
+    await _pageController.animateToPage(
+      _playthrough!.turnHistory.length,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+
+    // Now call API in background
+    try {
+      await _processApiResponse(input, currentTurn);
+    } catch (e) {
+      print('API call failed: $e');
+      _showErrorDialog('Connection Error', 
+        'Unable to process your input. Please check your internet connection and try again.');
+    }
+  }
+
+  Future<void> _processApiResponse(String input, TurnData previousTurn) async {
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      if (userId == null) throw Exception('User not authenticated');
+
+      // 4) Create PlayRequest with all required fields
+      final request = PlayRequest(
+        userId: userId,
+        storyId: widget.story.id,
+        input: input, // User's choice
+        storedState: previousTurn.encryptedGameState, // Previous storedState
+        displayedNarrative: previousTurn.narrativeMarkdown, // Previous narrative
+        options: previousTurn.availableOptions, // Previous options
+      );
+
+      print('Sending POST /play request...');
+      final response = await SecureApiService.playStoryTurn(request);
+      print('Received API response - narrative length: ${response.narrative.length}');
+
+      // When AND ONLY when response is complete, save new turn locally
+      final updatedTurn = TurnData(
+        narrativeMarkdown: response.narrative,
+        userInput: input,
+        availableOptions: response.options,
+        encryptedGameState: response.storedState,
+        timestamp: DateTime.now(),
+        turnNumber: previousTurn.turnNumber + 1,
+      );
+
+      // Update the last turn in history with complete response
+      final updatedHistory = List<TurnData>.from(_playthrough!.turnHistory);
+      updatedHistory[updatedHistory.length - 1] = updatedTurn;
+
+      _playthrough = StoryPlaythrough(
+        storyId: _playthrough!.storyId,
+        turnHistory: updatedHistory,
+        currentTurnIndex: updatedHistory.length - 1,
+        lastTurnDate: DateTime.now(),
+        numberOfTurns: updatedHistory.length,
+      );
+
+      // Save to local storage
+      final simpleState = SimpleStoryState(
+        narrative: response.narrative,
+        options: response.options,
+        storedState: response.storedState,
+      );
+      await IFEStateManager.saveStoryState(widget.story.id, simpleState);
+      print('Saved new turn to local storage');
+
+      // Activate input cluster for new input (rebuild UI)
+      setState(() {});
+
+    } catch (e) {
+      print('Failed to process API response: $e');
+      // Handle error but don't block user navigation
+    }
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Go back to library
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
     );
   }
 

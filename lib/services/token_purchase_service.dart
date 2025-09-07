@@ -153,7 +153,7 @@ class TokenPurchaseService {
     };
     
     final response = await http.post(
-      Uri.parse('https://infiniteer.azurewebsites.net/api/purchase/validate'),
+      Uri.parse('https://localhost:7161/api/purchase/validate'),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

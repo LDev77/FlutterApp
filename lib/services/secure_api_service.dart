@@ -2,33 +2,13 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'secure_auth_manager.dart';
+import '../models/api_models.dart';
 
 class SecureApiService {
-  static const String baseUrl = 'https://infiniteer.azurewebsites.net/api';
+  static const String baseUrl = 'https://localhost:7161/api';
   
-  /// Make a story choice and advance the narrative
-  static Future<Map<String, dynamic>> playStoryTurn({
-    required String storyId,
-    required String userInput,
-    String? storedState,
-    String? displayedNarrative,
-    List<String>? options,
-  }) async {
-    // Get the secure user ID
-    final userId = await SecureAuthManager.getUserId();
-    if (userId == null) {
-      throw Exception('User not authenticated - no secure user ID found');
-    }
-    
-    final requestBody = {
-      'userId': userId,
-      'storyId': storyId,
-      'input': userInput,
-      'storedState': storedState,
-      'displayedNarrative': displayedNarrative,
-      'options': options,
-    };
-    
+  /// Make a story choice and advance the narrative (POST /play)
+  static Future<PlayResponse> playStoryTurn(PlayRequest request) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/play'),
@@ -36,13 +16,14 @@ class SecureApiService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode(requestBody),
+        body: jsonEncode(request.toJson()),
       );
       
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-        debugPrint('Story turn processed successfully for user: ${userId.substring(0, 8)}...');
-        return responseData;
+        final playResponse = PlayResponse.fromJson(responseData);
+        debugPrint('Story turn processed successfully for user: ${request.userId.substring(0, 8)}...');
+        return playResponse;
       } else if (response.statusCode == 400) {
         // Handle specific errors like insufficient tokens
         final errorData = jsonDecode(response.body) as Map<String, dynamic>;
@@ -58,32 +39,31 @@ class SecureApiService {
     }
   }
   
-  /// Start a new story
-  static Future<Map<String, dynamic>> startStory(String storyId) async {
-    final userId = await SecureAuthManager.getUserId();
-    if (userId == null) {
-      throw Exception('User not authenticated - no secure user ID found');
-    }
-    
+  /// Get story introduction (free) - GET /play/{storyId}
+  static Future<PlayResponse> getStoryIntroduction(String storyId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/play/$storyId?userId=$userId'),
+        Uri.parse('$baseUrl/play/$storyId'),
         headers: {
           'Accept': 'application/json',
         },
       );
       
       if (response.statusCode == 200) {
+        debugPrint('Raw API Response Body: ${response.body}');
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-        debugPrint('Story started successfully: $storyId');
-        return responseData;
-      } else if (response.statusCode == 401) {
-        throw UnauthorizedException('Invalid or expired user ID');
+        debugPrint('Parsed Response Data: $responseData');
+        final playResponse = PlayResponse.fromJson(responseData);
+        debugPrint('PlayResponse - Narrative: "${playResponse.narrative}"');
+        debugPrint('PlayResponse - Options: ${playResponse.options}');
+        debugPrint('PlayResponse - StoredState: "${playResponse.storedState}"');
+        debugPrint('Story introduction loaded: $storyId');
+        return playResponse;
       } else {
-        throw Exception('Failed to start story: ${response.statusCode}');
+        throw Exception('Failed to get story introduction: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Failed to start story API call: $e');
+      debugPrint('Failed to get story introduction: $e');
       rethrow;
     }
   }

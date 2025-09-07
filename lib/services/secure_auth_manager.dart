@@ -30,6 +30,12 @@ class SecureAuthManager {
   
   /// Get the stored user ID
   static Future<String?> getUserId() async {
+    // TESTING: Hardcode user ID for web localhost integration testing
+    if (kIsWeb) {
+      debugPrint('Using hardcoded test user ID for web localhost');
+      return 'Test#54321';
+    }
+    
     try {
       return await _storage.read(key: _userIdKey);
     } catch (e) {
@@ -61,6 +67,11 @@ class SecureAuthManager {
   
   /// Check if user is authenticated (has both user ID and token)
   static Future<bool> isAuthenticated() async {
+    // TESTING: For web localhost, always consider authenticated with test user
+    if (kIsWeb) {
+      return true;
+    }
+    
     final userId = await getUserId();
     final token = await getAuthToken();
     return userId != null && token != null;

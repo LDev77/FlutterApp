@@ -81,7 +81,7 @@ You pull your coat tighter and step into the night, unaware that your life is ab
 
   static const List<Story> sciFi = [
     Story(
-      id: 'quantum_echo',
+      id: 'White Room',
       title: 'Quantum Echo',
       description: 'Reality bends and time fractures in this mind-bending sci-fi thriller.',
       coverUrl: 'https://picsum.photos/300/450?random=3',

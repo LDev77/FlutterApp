@@ -83,6 +83,9 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           // Current token balance
           _buildTokenBalance(),
           
+          // Infiniteerium coin showcase
+          _buildCoinShowcase(),
+          
           // Token packs
           Expanded(
             child: ListView.builder(
@@ -171,6 +174,78 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
               size: 32,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoinShowcase() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          // Large coin image
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/images/Infiniteerium_med.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback to icon if image not found
+                  return Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Colors.purple, Colors.purple.shade700],
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white,
+                      size: 60,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // "Premium Infiniteerium" text
+          Text(
+            'Premium Infiniteerium',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          
+          const SizedBox(height: 4),
+          
+          // Subtitle
+          Text(
+            'Unlock infinite story possibilities',
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
         ],
       ),
     );

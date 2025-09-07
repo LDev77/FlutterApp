@@ -1,4 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:convert';
+import '../models/api_models.dart';
 
 class IFEStateManager {
   static const String _stateBoxName = 'ife_states';
@@ -12,16 +14,30 @@ class IFEStateManager {
     await Hive.openBox(_progressBoxName);
   }
   
-  // Store IFE state (encrypted blobs from API)
-  static Future<void> saveStoryState(String storyId, String stateJson) async {
+  // Store simplified story state (narrative, options, storedState)
+  static Future<void> saveStoryState(String storyId, SimpleStoryState state) async {
     final box = Hive.box(_stateBoxName);
-    await box.put('story_${storyId}_state', stateJson);
+    await box.put('story_${storyId}_state', jsonEncode(state.toJson()));
   }
   
-  // Retrieve IFE state
-  static String? getStoryState(String storyId) {
+  // Retrieve simplified story state
+  static SimpleStoryState? getStoryState(String storyId) {
     final box = Hive.box(_stateBoxName);
-    return box.get('story_${storyId}_state');
+    final stateJson = box.get('story_${storyId}_state') as String?;
+    if (stateJson == null) return null;
+    
+    try {
+      final stateMap = jsonDecode(stateJson) as Map<String, dynamic>;
+      return SimpleStoryState.fromJson(stateMap);
+    } catch (e) {
+      // If parsing fails, return null (corrupted data)
+      return null;
+    }
+  }
+  
+  // Check if story has any saved state (used to determine if we need GET call)
+  static bool hasStoryState(String storyId) {
+    return getStoryState(storyId) != null;
   }
   
   // Token management
@@ -46,9 +62,9 @@ class IFEStateManager {
     return box.get('story_${storyId}_progress');
   }
   
-  // Check if story is started
+  // Check if story is started (same as hasStoryState)
   static bool isStoryStarted(String storyId) {
-    return getStoryState(storyId) != null;
+    return hasStoryState(storyId);
   }
   
   // Get story completion percentage (mock implementation)
