@@ -1,23 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 
-class StreamingStoryText extends StatefulWidget {
+class StreamingStoryText extends StatelessWidget {
   final String fullText;
+  final bool shouldAnimate;
   final Duration animationDuration;
   final VoidCallback? onAnimationComplete;
   
   const StreamingStoryText({
     super.key,
     required this.fullText,
+    this.shouldAnimate = false,
     this.animationDuration = const Duration(milliseconds: 800),
     this.onAnimationComplete,
   });
 
   @override
-  State<StreamingStoryText> createState() => _StreamingStoryTextState();
+  Widget build(BuildContext context) {
+    if (shouldAnimate) {
+      return _AnimatedStoryText(
+        fullText: fullText,
+        animationDuration: animationDuration,
+        onAnimationComplete: onAnimationComplete,
+      );
+    } else {
+      // For history pages, render markdown immediately without animation
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return MarkdownBlock(
+        data: fullText,
+        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+      );
+    }
+  }
 }
 
-class _StreamingStoryTextState extends State<StreamingStoryText> 
+class _AnimatedStoryText extends StatefulWidget {
+  final String fullText;
+  final Duration animationDuration;
+  final VoidCallback? onAnimationComplete;
+  
+  const _AnimatedStoryText({
+    required this.fullText,
+    this.animationDuration = const Duration(milliseconds: 800),
+    this.onAnimationComplete,
+  });
+
+  @override
+  State<_AnimatedStoryText> createState() => _AnimatedStoryTextState();
+}
+
+class _AnimatedStoryTextState extends State<_AnimatedStoryText> 
     with TickerProviderStateMixin {
   
   List<String> _sentences = [];
@@ -119,43 +151,14 @@ class _StreamingStoryTextState extends State<StreamingStoryText>
                 position: _slideAnimations[index],
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 12.0),
-                  child: MarkdownWidget(
-                    data: sentence,
-                    config: MarkdownConfig.darkConfig.copy(
-                      configs: [
-                        PConfig(
-                          textStyle: TextStyle(
-                            fontSize: 18,
-                            height: 1.6,
-                            color: Colors.white,
-                          ),
-                        ),
-                        H1Config(
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            height: 1.3,
-                          ),
-                        ),
-                        H2Config(
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.3,
-                          ),
-                        ),
-                        H3Config(
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final isDark = Theme.of(context).brightness == Brightness.dark;
+                      return MarkdownBlock(
+                        data: sentence,
+                        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+                      );
+                    },
                   ),
                 ),
               ),

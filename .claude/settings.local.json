@@ -4,7 +4,8 @@
       "Bash(flutter:*)",
       "WebSearch",
       "Bash(code .)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "WebFetch(domain:pub.dev)"
     ],
     "deny": [],
     "ask": []

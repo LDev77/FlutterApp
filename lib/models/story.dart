@@ -22,7 +22,29 @@ class Story {
 
 // Sample story data for development
 class SampleStories {
+  // Test story for development
+  static const Story testStory = Story(
+    id: 'Test Story',
+    title: 'Test Story',
+    description: 'A simple test story for development with multiple pages.',
+    coverUrl: 'https://picsum.photos/300/450?random=999',
+    genre: 'Test',
+    introText: '''# Test Story - Turn 1
+
+**This is the first page** of our test story.
+
+*Welcome to the interactive fiction experience!*
+
+You find yourself standing at the entrance of a mysterious library. The ancient wooden doors creak slightly in the wind, and you can smell the musty scent of old books mixed with something else... something magical.
+
+> "Every story begins with a single choice."
+
+What will you do?''',
+    estimatedTurns: 5,
+  );
+
   static const List<Story> adultRomance = [
+    testStory, // Add test story first (upper left position)
     Story(
       id: 'kells_conundrum',
       title: "Kell's Co-ed Conundrum",
