@@ -17,7 +17,7 @@ class SecureApiService {
           'Accept': 'application/json',
         },
         body: jsonEncode(request.toJson()),
-      );
+      ).timeout(const Duration(seconds: 150));
       
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
@@ -47,7 +47,7 @@ class SecureApiService {
         headers: {
           'Accept': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 150));
       
       if (response.statusCode == 200) {
         debugPrint('Raw API Response Body: ${response.body}');

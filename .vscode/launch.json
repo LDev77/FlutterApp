@@ -9,6 +9,14 @@
       "args": ["--flavor", "development"]
     },
     {
+      "name": "Infiniteer Web (Port 3000)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": ["--web-port=3000"]
+    },
+    {
       "name": "Infiniteer (Profile)",
       "request": "launch", 
       "type": "dart",

@@ -110,7 +110,87 @@ class ConversationMessage {
   }
 }
 
-/// Simple story state for local storage - only the 3 key fields we need
+/// Complete story state for local storage - stores full turn history
+class CompleteStoryState {
+  final String storyId;
+  final List<StoredTurnData> turnHistory;
+  final int currentTurnIndex;
+  final DateTime lastTurnDate;
+  final int numberOfTurns;
+
+  const CompleteStoryState({
+    required this.storyId,
+    required this.turnHistory,
+    required this.currentTurnIndex,
+    required this.lastTurnDate,
+    required this.numberOfTurns,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'storyId': storyId,
+      'turnHistory': turnHistory.map((turn) => turn.toJson()).toList(),
+      'currentTurnIndex': currentTurnIndex,
+      'lastTurnDate': lastTurnDate.toIso8601String(),
+      'numberOfTurns': numberOfTurns,
+    };
+  }
+
+  factory CompleteStoryState.fromJson(Map<String, dynamic> json) {
+    return CompleteStoryState(
+      storyId: json['storyId'] as String,
+      turnHistory: (json['turnHistory'] as List)
+          .map((turn) => StoredTurnData.fromJson(turn as Map<String, dynamic>))
+          .toList(),
+      currentTurnIndex: json['currentTurnIndex'] as int,
+      lastTurnDate: DateTime.parse(json['lastTurnDate'] as String),
+      numberOfTurns: json['numberOfTurns'] as int,
+    );
+  }
+}
+
+/// Individual turn data for storage
+class StoredTurnData {
+  final String narrativeMarkdown;
+  final String userInput;
+  final List<String> availableOptions;
+  final String encryptedGameState;
+  final DateTime timestamp;
+  final int turnNumber;
+
+  const StoredTurnData({
+    required this.narrativeMarkdown,
+    required this.userInput,
+    required this.availableOptions,
+    required this.encryptedGameState,
+    required this.timestamp,
+    required this.turnNumber,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'narrativeMarkdown': narrativeMarkdown,
+      'userInput': userInput,
+      'availableOptions': availableOptions,
+      'encryptedGameState': encryptedGameState,
+      'timestamp': timestamp.toIso8601String(),
+      'turnNumber': turnNumber,
+    };
+  }
+
+  factory StoredTurnData.fromJson(Map<String, dynamic> json) {
+    return StoredTurnData(
+      narrativeMarkdown: json['narrativeMarkdown'] as String,
+      userInput: json['userInput'] as String,
+      availableOptions: List<String>.from(json['availableOptions'] as List),
+      encryptedGameState: json['encryptedGameState'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      turnNumber: json['turnNumber'] as int,
+    );
+  }
+}
+
+/// Legacy - keeping for compatibility
 class SimpleStoryState {
   final String narrative;
   final List<String> options;

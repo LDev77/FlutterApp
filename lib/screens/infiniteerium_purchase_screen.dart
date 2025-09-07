@@ -80,16 +80,13 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
       ),
       body: Column(
         children: [
-          // Current token balance
+          // Current token balance with integrated coin
           _buildTokenBalance(),
-          
-          // Infiniteerium coin showcase
-          _buildCoinShowcase(),
           
           // Token packs
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount: _tokenPacks.length,
               itemBuilder: (context, index) {
                 return _buildTokenPackCard(_tokenPacks[index]);
@@ -106,8 +103,8 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
 
   Widget _buildTokenBalance() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [Colors.purple.withOpacity(0.2), Colors.purple.withOpacity(0.1)],
@@ -121,131 +118,106 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Current Balance',
-                style: TextStyle(
-                  color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
-                  fontSize: 14,
+          // Left side - Balance info (25% of width)
+          Expanded(
+            flex: 25,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Balance',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    color: Colors.purple,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${IFEStateManager.getTokens()}',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
                       color: Colors.purple,
+                      size: 20,
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'tokens',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${IFEStateManager.getTokens()}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'tokens',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
                   ),
-                ],
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.purple.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.account_balance_wallet,
-              color: Colors.purple,
-              size: 32,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCoinShowcase() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          // Large coin image
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 20,
-                  spreadRadius: 5,
                 ),
               ],
             ),
-            child: ClipOval(
-              child: Image.asset(
-                'assets/images/Infiniteerium_med.png',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  // Fallback to icon if image not found
-                  return Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [Colors.purple, Colors.purple.shade700],
-                      ),
+          ),
+          
+          // Center - Infiniteerium coin (33% of width, 40% bigger = 112px)
+          Expanded(
+            flex: 33,
+            child: Center(
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.3),
+                      blurRadius: 15,
+                      spreadRadius: 3,
                     ),
-                    child: const Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white,
-                      size: 60,
-                    ),
-                  );
-                },
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/Infiniteerium_med.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [Colors.purple, Colors.purple.shade700],
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 56,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           ),
           
-          const SizedBox(height: 16),
-          
-          // "Premium Infiniteerium" text
-          Text(
-            'Premium Infiniteerium',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
+          // Right side - Description (25% of width)
+          Expanded(
+            flex: 25,
+            child: Text(
+              'Powers all your infinite stories',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.8),
+                height: 1.3,
+              ),
+              textAlign: TextAlign.right,
             ),
           ),
-          
-          const SizedBox(height: 4),
-          
-          // Subtitle
-          Text(
-            'Unlock infinite story possibilities',
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
         ],
       ),
     );
@@ -253,7 +225,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
 
   Widget _buildTokenPackCard(TokenPack pack) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       child: Stack(
         children: [
           Card(
@@ -389,29 +361,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           ),
         ),
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: 16,
-                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Tokens are used to make choices in stories. One token per choice.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
+      child: Row(
             children: [
               Icon(
                 Icons.security,
@@ -430,8 +380,6 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
               ),
             ],
           ),
-        ],
-      ),
     );
   }
 

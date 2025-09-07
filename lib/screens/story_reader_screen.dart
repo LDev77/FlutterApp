@@ -52,26 +52,48 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       return;
     }
 
-    // For all other stories, check local storage first
-    final savedState = IFEStateManager.getStoryState(widget.story.id);
+    // For all other stories, check local storage first (complete turn history)
+    print('DEBUG: Checking complete local storage for story ID: "${widget.story.id}"');
+    final savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+    print('DEBUG: Complete storage result: ${savedPlaythrough != null ? "FOUND with ${savedPlaythrough.turnHistory.length} turns" : "NOT FOUND"}');
     
-    if (savedState != null) {
-      // Found local data - convert to StoryPlaythrough format
-      print('Found local storage for ${widget.story.id}');
-      _playthrough = _convertSimpleStateToPlaythrough(savedState);
+    if (savedPlaythrough != null) {
+      // Found complete playthrough data
+      print('Found complete local storage for ${widget.story.id} with ${savedPlaythrough.turnHistory.length} turns');
+      _playthrough = savedPlaythrough;
+      
+      // Navigate to the last turn (where input cluster is)
+      final lastTurnIndex = _playthrough!.turnHistory.length;
+      setState(() {
+        _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
+      });
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
+      });
+      return; // Important: return early to avoid the API call path
     } else {
       // No local data - call GET /play to populate
       print('No local storage for ${widget.story.id} - calling GET /play');
       try {
         final response = await SecureApiService.getStoryIntroduction(widget.story.id);
         
-        // Convert API response to local storage format
-        final simpleState = SimpleStoryState.fromPlayResponse(response);
-        await IFEStateManager.saveStoryState(widget.story.id, simpleState);
+        // Convert API response to StoryPlaythrough format 
+        _playthrough = _convertSimpleStateToPlaythrough(SimpleStoryState.fromPlayResponse(response));
         
-        // Convert to StoryPlaythrough format for UI
-        _playthrough = _convertSimpleStateToPlaythrough(simpleState);
+        // Save complete playthrough to local storage
+        await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
         print('Populated local storage from API for ${widget.story.id}');
+        
+        // Navigate to the last turn (where input cluster is)
+        final lastTurnIndex = _playthrough!.turnHistory.length;
+        setState(() {
+          _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
+        });
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
+        });
       } catch (e) {
         print('Failed to load story ${widget.story.id}: $e');
         _showErrorDialog('Unable to load story', 
@@ -79,20 +101,6 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         return;
       }
     }
-
-    // Navigate to the last turn (where input cluster is)
-    final lastTurnIndex = _playthrough!.turnHistory.length;
-    setState(() {
-      _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
-    });
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _pageController.animateToPage(
-        lastTurnIndex,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    });
   }
 
   // Convert SimpleStoryState to StoryPlaythrough format for UI compatibility
@@ -120,8 +128,41 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     if (_playthrough == null) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: const Center(
-          child: Text('Story not found'),
+        appBar: AppBar(
+          title: const Text('Story Reader'),
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Story not found',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Unable to load this story',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -390,12 +431,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       _currentPage = _playthrough!.turnHistory.length; // Move to new page
     });
 
-    // Animate to the new page (with blue input box, no input cluster)
-    await _pageController.animateToPage(
-      _playthrough!.turnHistory.length,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-    );
+    // Jump to the new page instantly (with blue input box, no input cluster)
+    _pageController.jumpToPage(_playthrough!.turnHistory.length);
 
     // Now call API in background
     try {
@@ -448,14 +485,13 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         numberOfTurns: updatedHistory.length,
       );
 
-      // Save to local storage
-      final simpleState = SimpleStoryState(
-        narrative: response.narrative,
-        options: response.options,
-        storedState: response.storedState,
-      );
-      await IFEStateManager.saveStoryState(widget.story.id, simpleState);
-      print('Saved new turn to local storage');
+      // Save complete playthrough to local storage (CRITICAL: saves in background regardless of user location)
+      print('DEBUG: About to save complete playthrough - Story ID: "${widget.story.id}"');
+      print('DEBUG: Playthrough has ${_playthrough!.turnHistory.length} turns');
+      print('DEBUG: New turn narrative length: ${response.narrative.length}');
+      print('DEBUG: New turn options count: ${response.options.length}');
+      await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
+      print('DEBUG: Complete save operation completed - user can be anywhere in story');
 
       // Activate input cluster for new input (rebuild UI)
       setState(() {});

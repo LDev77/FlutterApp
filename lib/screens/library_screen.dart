@@ -135,8 +135,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.purple.withOpacity(0.3),
-                    Colors.blue.withOpacity(0.2),
+                    Colors.purple.shade700.withOpacity(0.9),
+                    Colors.blue.shade800.withOpacity(0.8),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
@@ -209,8 +209,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
               const SizedBox(width: 12),
               Text(
                 genre,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
