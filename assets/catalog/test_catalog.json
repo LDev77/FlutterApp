@@ -1,0 +1,98 @@
+{
+  "appTitle": "Infiniteer",
+  "headerSubtitle": "Premium Interactive Fiction",
+  "welcomeMessage": "Choose your adventure in immersive stories",
+  "lastUpdated": "2025-09-07T12:00:00Z",
+  "genreRows": [
+    {
+      "genreTitle": "Adult Romance",
+      "subtitle": "Passion & desire await your choices",
+      "stories": [
+        {
+          "storyId": "kells-conundrum",
+          "coverImageUri": "https://picsum.photos/300/450?random=1",
+          "title": "Kell's Co-ed Conundrum",
+          "subtitle": "Campus Romance",
+          "marketingCopy": "Navigate the complex social dynamics of college life as Kell discovers unexpected attractions and difficult choices.",
+          "estimatedTurns": 25,
+          "tags": ["Romance", "College", "LGBTQ+", "Drama"]
+        },
+        {
+          "storyId": "midnight-masquerade",
+          "coverImageUri": "https://picsum.photos/300/450?random=2",
+          "title": "Midnight Masquerade",
+          "subtitle": "Victorian Seduction",
+          "marketingCopy": "Behind elegant masks lie dangerous desires. Who can you trust at the most exclusive ball of the season?",
+          "estimatedTurns": 30,
+          "tags": ["Romance", "Historical", "Mystery", "Victorian"]
+        },
+        {
+          "storyId": "office-affairs",
+          "coverImageUri": "https://picsum.photos/300/450?random=3",
+          "title": "Office Affairs",
+          "subtitle": "Corporate Temptation",
+          "marketingCopy": "Power dynamics shift when professional boundaries blur. Navigate workplace romance with career-defining consequences.",
+          "estimatedTurns": 22,
+          "tags": ["Romance", "Contemporary", "Workplace", "Power Play"]
+        }
+      ]
+    },
+    {
+      "genreTitle": "Sci-Fi Adventures",
+      "subtitle": "Explore infinite possibilities",
+      "stories": [
+        {
+          "storyId": "White Room",
+          "coverImageUri": "https://picsum.photos/300/450?random=3",
+          "title": "Quantum Echo",
+          "subtitle": "White Room Mystery",
+          "marketingCopy": "Reality bends and time fractures in this mind-bending sci-fi thriller. Wake up in a white room with no memory - your choices determine the truth.",
+          "estimatedTurns": 30,
+          "tags": ["Sci-Fi", "Mystery", "Psychological", "Time Travel"]
+        },
+        {
+          "storyId": "quantum-entanglement",
+          "coverImageUri": "https://picsum.photos/300/450?random=4",
+          "title": "Quantum Entanglement",
+          "subtitle": "Reality Bends",
+          "marketingCopy": "When parallel universes collide, your choices reshape the fabric of reality itself. Which timeline will survive?",
+          "estimatedTurns": 35,
+          "tags": ["Sci-Fi", "Parallel Worlds", "Time Travel", "Physics"]
+        },
+        {
+          "storyId": "mars-colony-alpha",
+          "coverImageUri": "https://picsum.photos/300/450?random=5",
+          "title": "Mars Colony Alpha",
+          "subtitle": "Red Planet Politics",
+          "marketingCopy": "Lead humanity's first permanent settlement on Mars. Balance survival, politics, and the discovery of ancient secrets.",
+          "estimatedTurns": 40,
+          "tags": ["Sci-Fi", "Space", "Leadership", "Survival"]
+        }
+      ]
+    },
+    {
+      "genreTitle": "Horror & Suspense",
+      "subtitle": "Face your darkest fears",
+      "stories": [
+        {
+          "storyId": "haunted-inheritance",
+          "coverImageUri": "https://picsum.photos/300/450?random=6",
+          "title": "The Haunted Inheritance",
+          "subtitle": "Gothic Mystery",
+          "marketingCopy": "You've inherited a Victorian mansion with a deadly secret. Some doors should never be opened...",
+          "estimatedTurns": 28,
+          "tags": ["Horror", "Gothic", "Supernatural", "Mystery"]
+        },
+        {
+          "storyId": "digital-nightmare",
+          "coverImageUri": "https://picsum.photos/300/450?random=7",
+          "title": "Digital Nightmare",
+          "subtitle": "Cyber Horror",
+          "marketingCopy": "Trapped in a virtual reality that's becoming too real. Can you escape before the code consumes your mind?",
+          "estimatedTurns": 26,
+          "tags": ["Horror", "Cyber", "Technology", "Psychological"]
+        }
+      ]
+    }
+  ]
+}

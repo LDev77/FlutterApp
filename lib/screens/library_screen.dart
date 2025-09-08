@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import '../models/story.dart';
-import '../widgets/optimized_image.dart';
+import '../models/catalog/library_catalog.dart';
+import '../models/catalog/genre_row.dart';
+import '../models/catalog/catalog_story.dart';
+import '../models/story.dart'; // Still needed for StoryReaderScreen compatibility
+import '../widgets/cached_cover_image.dart';
+import '../services/catalog_service.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
 import 'story_reader_screen.dart';
@@ -15,17 +19,42 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   int _userTokens = 0;
+  LibraryCatalog? _catalog;
+  bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _loadUserTokens();
+    _loadCatalog();
   }
 
   void _loadUserTokens() {
     setState(() {
       _userTokens = IFEStateManager.getTokens();
     });
+  }
+
+  Future<void> _loadCatalog() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+      
+      final catalog = await CatalogService.getCatalog();
+      
+      setState(() {
+        _catalog = catalog;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load catalog: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -38,7 +67,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           // App bar with user tokens
           SliverAppBar(
             title: Text(
-              'Infiniteer',
+              _catalog?.appTitle ?? 'Infiniteer',
               style: TextStyle(
                 color: Theme.of(context).appBarTheme.foregroundColor,
                 fontWeight: FontWeight.bold,
@@ -141,25 +170,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Padding(
-                padding: EdgeInsets.all(24.0),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Welcome to Premium Interactive Fiction',
-                      style: TextStyle(
+                      _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         height: 1.2,
                       ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Text(
-                      'Immerse yourself in choice-driven stories where every decision shapes your destiny.',
-                      style: TextStyle(
+                      _catalog?.welcomeMessage ?? 'Immerse yourself in choice-driven stories where every decision shapes your destiny.',
+                      style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
                         height: 1.4,
@@ -171,23 +200,62 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
           ),
           
-          // Genre sections - Browse mode (50% vh each row)
-          SliverList(
-            delegate: SliverChildListDelegate([
-              _buildGenreSection('Adult/Romance', SampleStories.adultRomance, Icons.favorite, heightPercentage: 0.50),
-              _buildGenreSection('Sci-Fi', SampleStories.sciFi, Icons.rocket_launch, heightPercentage: 0.50),
-              _buildGenreSection('Horror', SampleStories.horror, Icons.psychology, heightPercentage: 0.50),
-              const SizedBox(height: 100), // Bottom padding
-              
-              // For future "My Stories" mode, use: heightPercentage: 0.66 for 66% vh single row
-            ]),
-          ),
+          // Dynamic catalog content
+          _isLoading
+              ? const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(50.0),
+                      child: CircularProgressIndicator(color: Colors.purple),
+                    ),
+                  ),
+                )
+              : _errorMessage != null
+                  ? SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(50.0),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: Colors.red.withOpacity(0.7),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _loadCatalog,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildListDelegate([
+                        if (_catalog != null)
+                          ..._catalog!.genreRows.map((genreRow) => 
+                            _buildGenreSection(genreRow, heightPercentage: 0.50)
+                          ),
+                        const SizedBox(height: 100), // Bottom padding
+                      ]),
+                    ),
         ],
       ),
     );
   }
 
-  Widget _buildGenreSection(String genre, List<Story> stories, IconData icon, {double heightPercentage = 0.50}) {
+  Widget _buildGenreSection(GenreRow genreRow, {double heightPercentage = 0.50}) {
     final screenHeight = MediaQuery.of(context).size.height;
     final rowHeight = screenHeight * heightPercentage; // Flexible vh percentage
     final bookHeight = rowHeight - 40; // Leave space for margins
@@ -196,23 +264,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Genre header
+        // Genre header with subtitle
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                color: Colors.purple,
-                size: 24,
-              ),
-              const SizedBox(width: 12),
               Text(
-                genre,
+                genreRow.genreTitle,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                genreRow.subtitle,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  fontSize: 16,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
             ],
@@ -225,17 +297,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            itemCount: stories.length + 2, // Add 2 for left and right blocks
+            itemCount: genreRow.stories.length + 2, // Add 2 for left and right blocks
             itemBuilder: (context, index) {
               if (index == 0) {
                 // Left block
                 return _buildSideBlock(bookWidth, bookHeight, isLeft: true);
-              } else if (index == stories.length + 1) {
+              } else if (index == genreRow.stories.length + 1) {
                 // Right block
                 return _buildSideBlock(bookWidth, bookHeight, isLeft: false);
               } else {
                 // Story cover
-                return _buildBookCover(stories[index - 1], bookWidth, bookHeight);
+                return _buildBookCover(genreRow.stories[index - 1], bookWidth, bookHeight);
               }
             },
           ),
@@ -246,9 +318,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  Widget _buildBookCover(Story story, double bookWidth, double bookHeight) {
-    final isStarted = IFEStateManager.isStoryStarted(story.id);
-    final completion = IFEStateManager.getStoryCompletion(story.id);
+  Widget _buildBookCover(CatalogStory story, double bookWidth, double bookHeight) {
+    final isStarted = IFEStateManager.isStoryStarted(story.storyId);
+    final completion = IFEStateManager.getStoryCompletion(story.storyId);
     
     return GestureDetector(
       onTap: () => _openStory(story),
@@ -257,7 +329,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         height: bookHeight,
         margin: const EdgeInsets.symmetric(horizontal: 12.0),
         child: Hero(
-          tag: 'book_${story.id}',
+          tag: 'book_${story.storyId}',
           child: Material(
             elevation: 8.0,
             borderRadius: BorderRadius.circular(12.0),
@@ -267,9 +339,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 fit: StackFit.expand,
                 children: [
                   // Cover image
-                  OptimizedImageWidget(
-                    imageUrl: story.coverUrl,
+                  CachedCoverImage(
+                    imageUrl: story.coverImageUri,
                     fit: BoxFit.cover,
+                    borderRadius: BorderRadius.circular(12.0),
                   ),
                   
                   // Gradient overlay
@@ -292,7 +365,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   
                   // Adult content indicator
-                  if (story.isAdult)
+                  if (story.tags.contains('Romance') || story.tags.contains('Adult'))
                     Positioned(
                       top: 12,
                       right: 12,
@@ -357,32 +430,58 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (story.subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              story.subtitle,
+                              style: TextStyle(
+                                color: Colors.purple.withOpacity(0.9),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                           const SizedBox(height: 6),
                           Text(
-                            story.description,
+                            story.marketingCopy,
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.8),
                               fontSize: 13,
                               height: 1.3,
                             ),
-                            maxLines: 3,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Icon(
-                                isStarted ? Icons.play_circle_filled : Icons.play_circle_outline,
-                                color: Colors.purple,
-                                size: 20,
+                              Row(
+                                children: [
+                                  Icon(
+                                    isStarted ? Icons.play_circle_filled : Icons.play_circle_outline,
+                                    color: Colors.purple,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    isStarted ? 'Continue' : 'Start Reading',
+                                    style: const TextStyle(
+                                      color: Colors.purple,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 6),
                               Text(
-                                isStarted ? 'Continue' : 'Start Reading',
-                                style: const TextStyle(
-                                  color: Colors.purple,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                '~${story.estimatedTurns} turns',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.6),
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -417,7 +516,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
   
-  void _openStory(Story story) {
+  void _openStory(CatalogStory catalogStory) {
+    // Convert CatalogStory to Story model for StoryReaderScreen compatibility
+    // TODO: Eventually refactor StoryReaderScreen to work with CatalogStory directly
+    final story = Story(
+      id: catalogStory.storyId,
+      title: catalogStory.title,
+      description: catalogStory.marketingCopy, // Use marketing copy as description
+      coverUrl: catalogStory.coverImageUri,
+      genre: _getGenreFromTags(catalogStory.tags),
+      introText: catalogStory.subtitle, // Use subtitle as intro text
+      isAdult: catalogStory.tags.contains('Romance') || catalogStory.tags.contains('Adult'),
+      estimatedTurns: catalogStory.estimatedTurns,
+    );
+    
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -441,5 +553,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
       // Refresh token count when returning from story
       _loadUserTokens();
     });
+  }
+
+  /// Helper method to convert tags to genre string
+  String _getGenreFromTags(List<String> tags) {
+    if (tags.contains('Romance')) return 'Adult/Romance';
+    if (tags.contains('Sci-Fi')) return 'Sci-Fi';
+    if (tags.contains('Horror')) return 'Horror';
+    return tags.isNotEmpty ? tags.first : 'General';
   }
 }

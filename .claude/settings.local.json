@@ -5,7 +5,11 @@
       "WebSearch",
       "Bash(code .)",
       "Bash(copy:*)",
-      "WebFetch(domain:pub.dev)"
+      "WebFetch(domain:pub.dev)",
+      "Read(//e/**)",
+      "Bash(python:*)",
+      "Bash(/bashes)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

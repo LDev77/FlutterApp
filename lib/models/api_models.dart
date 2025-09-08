@@ -48,6 +48,7 @@ class PlayResponse {
   final bool ends;
   final String endingMneId;
   final List<ConversationMessage> messageHistory;
+  final int? tokenBalance; // Available from POST /play responses, null on GET
 
   const PlayResponse({
     this.narrative = '',
@@ -57,6 +58,7 @@ class PlayResponse {
     this.ends = false,
     this.endingMneId = '',
     this.messageHistory = const [],
+    this.tokenBalance, // Nullable - only from POST responses
   });
 
   factory PlayResponse.fromJson(Map<String, dynamic> json) {
@@ -70,6 +72,7 @@ class PlayResponse {
       messageHistory: (json['messageHistory'] as List?)
           ?.map((item) => ConversationMessage.fromJson(item as Map<String, dynamic>))
           .toList() ?? [],
+      tokenBalance: json['tokenBalance'] as int? ?? json['TokenBalance'] as int?, // Handle both casingvariant)s
     );
   }
 
@@ -82,6 +85,7 @@ class PlayResponse {
       'Ends': ends,
       'EndingMneId': endingMneId,
       'MessageHistory': messageHistory.map((msg) => msg.toJson()).toList(),
+      if (tokenBalance != null) 'TokenBalance': tokenBalance,
     };
   }
 }

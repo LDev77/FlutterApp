@@ -198,11 +198,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             },
           ),
 
-          // Navigation arrows for web/desktop
+          // Navigation arrows - positioned at same level as options button
+          // Left arrow (always show if not on first page)
           if (_currentPage > 0)
             Positioned(
               left: 20,
-              top: MediaQuery.of(context).size.height / 2 - 25,
+              bottom: 20, // Same level as options/send buttons
               child: GestureDetector(
                 onTap: () {
                   _pageController.previousPage(
@@ -214,8 +215,15 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                    color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     Icons.arrow_back_ios_new,
@@ -226,10 +234,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
               ),
             ),
 
-          if (_currentPage < _playthrough!.turnHistory.length)
+          // Right arrow (next to left arrow, but hide on last turn with input cluster)
+          if (_currentPage < _playthrough!.turnHistory.length && !_isLastInteractiveTurn())
             Positioned(
-              right: 20,
-              top: MediaQuery.of(context).size.height / 2 - 25,
+              left: 80, // Right next to left arrow (50px width + 10px gap + 20px margin)
+              bottom: 20, // Same level as options/send buttons
               child: GestureDetector(
                 onTap: () {
                   _pageController.nextPage(
@@ -241,8 +250,15 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface.withOpacity(0.8),
+                    color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     Icons.arrow_forward_ios,
@@ -255,6 +271,14 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         ],
       ),
     );
+  }
+
+  /// Check if current page is the last interactive turn (has input cluster)
+  bool _isLastInteractiveTurn() {
+    if (_playthrough == null) return false;
+    // Last turn page is the one with input cluster
+    final lastTurnIndex = _playthrough!.turnHistory.length;
+    return _currentPage == lastTurnIndex;
   }
 
   Widget _buildTurnPage(TurnData turn) {
@@ -462,6 +486,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       print('Sending POST /play request...');
       final response = await SecureApiService.playStoryTurn(request);
       print('Received API response - narrative length: ${response.narrative.length}');
+
+      // Update token balance if provided in POST response (not available in GET)
+      if (response.tokenBalance != null) {
+        await IFEStateManager.saveTokens(response.tokenBalance!);
+        print('Updated token balance from server: ${response.tokenBalance}');
+      }
 
       // When AND ONLY when response is complete, save new turn locally
       final updatedTurn = TurnData(

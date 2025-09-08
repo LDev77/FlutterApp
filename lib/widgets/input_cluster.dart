@@ -24,6 +24,7 @@ class _InputClusterState extends State<InputCluster> {
   bool _showOptions = false;
   final GlobalKey _inputClusterKey = GlobalKey();
   double _inputClusterHeight = 120.0; // Default fallback
+  bool _hasInputText = false; // Track if input field has content
 
   @override
   void initState() {
@@ -98,9 +99,13 @@ class _InputClusterState extends State<InputCluster> {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           _updateInputClusterHeight();
                         });
+                        // Track input state for send button styling
+                        setState(() {
+                          _hasInputText = text.trim().isNotEmpty;
+                        });
                       },
                       decoration: InputDecoration(
-                        hintText: 'Type your choice or response...',
+                        hintText: 'Enter your own actions...',
                         hintStyle: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                         ),
@@ -122,7 +127,10 @@ class _InputClusterState extends State<InputCluster> {
                   // Button row: Options and Send
                   Row(
                     children: [
-                      // Options button
+                      // Left margin for navigation caret space
+                      const SizedBox(width: 80), // Space for left navigation caret (70px + 10px margin)
+                      
+                      // Options button (shortened on left side)
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
@@ -160,7 +168,7 @@ class _InputClusterState extends State<InputCluster> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Options...',
+                                  '...or pick option',
                                   style: TextStyle(
                                     color: _showOptions 
                                         ? Colors.purple
@@ -177,40 +185,43 @@ class _InputClusterState extends State<InputCluster> {
                       
                       const SizedBox(width: 12),
                       
-                      // Send button
+                      // Send button (state-aware styling)
                       GestureDetector(
-                        onTap: widget.onSendInput,
+                        onTap: _hasInputText ? widget.onSendInput : null, // Disable when empty
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.purple, Colors.purple.shade600],
-                            ),
+                            gradient: _hasInputText 
+                              ? LinearGradient(
+                                  colors: [Colors.purple, Colors.purple.shade600],
+                                )
+                              : LinearGradient(
+                                  colors: [Colors.grey.shade400, Colors.grey.shade500],
+                                ),
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
+                            boxShadow: _hasInputText ? [
                               BoxShadow(
                                 color: Colors.purple.withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
-                            ],
+                            ] : [],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.send_rounded,
+                              // Coin icon
+                              Icon(
+                                Icons.auto_awesome, // Coin/token icon
                                 color: Colors.white,
                                 size: 18,
                               ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Send',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              const SizedBox(width: 6),
+                              // Right arrow
+                              Icon(
+                                Icons.arrow_forward,
+                                color: Colors.white,
+                                size: 16,
                               ),
                             ],
                           ),
