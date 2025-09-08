@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeService extends ChangeNotifier {
@@ -16,12 +17,20 @@ class ThemeService extends ChangeNotifier {
   ThemeService._();
 
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedTheme = prefs.getString(_themeKey);
-    
-    if (savedTheme != null) {
-      _themeMode = savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light;
-      notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedTheme = prefs.getString(_themeKey);
+      
+      if (savedTheme != null && savedTheme.isNotEmpty) {
+        final newThemeMode = savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light;
+        
+        if (_themeMode != newThemeMode) {
+          _themeMode = newThemeMode;
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('ThemeService: Error during initialization: $e');
     }
   }
 
@@ -36,8 +45,21 @@ class ThemeService extends ChangeNotifier {
     _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     
     // Save to local storage
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_themeKey, _themeMode == ThemeMode.dark ? 'dark' : 'light');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final themeString = _themeMode == ThemeMode.dark ? 'dark' : 'light';
+      debugPrint('ThemeService: Attempting to save theme: $themeString');
+      
+      await prefs.setString(_themeKey, themeString);
+      debugPrint('ThemeService: Save completed');
+      
+      // Verify save
+      final savedValue = prefs.getString(_themeKey);
+      debugPrint('ThemeService: Verification read: "$savedValue"');
+      debugPrint('ThemeService: All keys after save: ${prefs.getKeys()}');
+    } catch (e) {
+      debugPrint('ThemeService: Error saving theme: $e');
+    }
     
     notifyListeners();
     

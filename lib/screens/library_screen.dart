@@ -27,33 +27,46 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _loadUserTokens();
-    _loadCatalog();
+    _loadCachedCatalog(); // Use cached data instead of API call
   }
 
-  void _loadUserTokens() {
+  Future<void> _loadUserTokens() async {
+    // Data should already be loaded during splash screen
+    // Just read from local storage (which was updated during splash)
     setState(() {
       _userTokens = IFEStateManager.getTokens();
     });
+    debugPrint('Library screen using cached token balance: $_userTokens');
   }
 
-  Future<void> _loadCatalog() async {
+  void _loadCachedCatalog() {
     try {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
       });
       
-      final catalog = await CatalogService.getCatalog();
-      
-      setState(() {
-        _catalog = catalog;
-        _isLoading = false;
+      // Catalog should already be cached from splash screen
+      // Use getCatalog() but it will return cached data instantly
+      CatalogService.getCatalog().then((catalog) {
+        setState(() {
+          _catalog = catalog;
+          _isLoading = false;
+        });
+        debugPrint('Library screen using cached catalog data');
+      }).catchError((e) {
+        setState(() {
+          _errorMessage = 'Failed to load cached catalog: $e';
+          _isLoading = false;
+        });
+        debugPrint('Library screen cached catalog error: $e');
       });
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load catalog: $e';
         _isLoading = false;
       });
+      debugPrint('Library screen catalog load error: $e');
     }
   }
 
@@ -75,8 +88,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
             ),
             backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-            floating: true,
-            snap: true,
+            pinned: true,  // Keep header always visible
             actions: [
               // Theme toggle button
               AnimatedBuilder(
@@ -134,7 +146,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '$_userTokens',
+                        _userTokens > 0 ? '$_userTokens' : '--',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.bold,
@@ -177,7 +189,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
+                      'Premium Interactive Fiction',  // Keep consistent header
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -187,7 +199,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _catalog?.welcomeMessage ?? 'Immerse yourself in choice-driven stories where every decision shapes your destiny.',
+                      'Choose your adventure in immersive stories',  // Keep consistent subtitle
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -233,7 +245,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton(
-                                onPressed: _loadCatalog,
+                                onPressed: () => _loadCachedCatalog(),
                                 child: const Text('Retry'),
                               ),
                             ],

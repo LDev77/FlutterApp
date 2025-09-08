@@ -151,7 +151,7 @@ class _InputClusterState extends State<InputCluster> {
                               border: Border.all(
                                 color: _showOptions 
                                     ? Colors.purple.withOpacity(0.3)
-                                    : Theme.of(context).dividerColor.withOpacity(0.3),
+                                    : Colors.purple.withOpacity(0.2), // Always show purple tint to indicate enabled
                                 width: 1,
                               ),
                               borderRadius: BorderRadius.circular(12),
@@ -163,7 +163,7 @@ class _InputClusterState extends State<InputCluster> {
                                   _showOptions ? Icons.expand_less : Icons.expand_more,
                                   color: _showOptions 
                                       ? Colors.purple
-                                      : Theme.of(context).colorScheme.onSurface,
+                                      : Colors.purple.withOpacity(0.8), // Always show purple to indicate enabled
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
@@ -172,7 +172,7 @@ class _InputClusterState extends State<InputCluster> {
                                   style: TextStyle(
                                     color: _showOptions 
                                         ? Colors.purple
-                                        : Theme.of(context).colorScheme.onSurface,
+                                        : Colors.purple.withOpacity(0.8), // Always show purple to indicate enabled
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -283,7 +283,7 @@ class _InputClusterState extends State<InputCluster> {
     final hasTokens = IFEStateManager.getTokens() >= tokenCost;
     
     return GestureDetector(
-      onTap: () => _handleOptionSelect(option),
+      onTap: hasTokens ? () => _handleOptionSelect(option) : null,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -339,10 +339,16 @@ class _InputClusterState extends State<InputCluster> {
   }
 
   void _handleOptionSelect(String option) {
+    // Set the input field to the selected option
     widget.inputController.text = option;
+    
+    // Update input state to enable send button
     setState(() {
       _showOptions = false;
+      _hasInputText = true;
     });
-    widget.inputFocusNode.requestFocus();
+    
+    // Immediately send the selected option
+    widget.onSendInput();
   }
 }

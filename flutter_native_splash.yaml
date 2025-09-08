@@ -1,0 +1,20 @@
+flutter_native_splash:
+  # Background color (hex) - match default dark theme
+  color: "#000000"
+  color_dark: "#000000"
+  
+  # Splash screen image (put your logo here)
+  image: assets/images/splash_logo.png
+  # Optional: Different image for dark mode
+  # image_dark: assets/images/splash_logo_dark.png
+  
+  # Platforms to generate splash screens for
+  android: true
+  ios: true
+  web: true
+  
+  # Android 12+ adaptive splash
+  android_12:
+    image: assets/images/splash_logo.png
+    icon_background_color: "#000000"
+  

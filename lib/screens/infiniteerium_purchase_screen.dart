@@ -419,13 +419,16 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         ),
       );
 
-      // TODO: Implement actual in-app purchase here
-      // For now, simulate purchase for testing
+      // TODO: Implement actual in-app purchase API call here
+      // For now, simulate purchase for testing by calling the server
       await Future.delayed(const Duration(seconds: 2));
       
-      // Add tokens to user's account
-      final currentTokens = IFEStateManager.getTokens();
-      await IFEStateManager.saveTokens(currentTokens + pack.tokens);
+      // NOTE: In production, this would be handled by the purchase validation API
+      // The server should handle the token addition and return the new balance
+      // await IFEStateManager.saveTokens(serverResponse.newTokenBalance);
+      
+      // For testing purposes, simulate server response
+      debugPrint('Purchase simulation: would call server API to add ${pack.tokens} tokens');
       
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();

@@ -194,6 +194,52 @@ class StoredTurnData {
   }
 }
 
+/// Account balance response from GET /api/account/{userId}
+class AccountResponse {
+  final String userId;
+  final int tokenBalance;
+
+  const AccountResponse({
+    required this.userId,
+    required this.tokenBalance,
+  });
+
+  factory AccountResponse.fromJson(Map<String, dynamic> json) {
+    return AccountResponse(
+      userId: json['userId'] as String,
+      tokenBalance: json['tokenBalance'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      'tokenBalance': tokenBalance,
+    };
+  }
+}
+
+/// Catalog request for POST /api/catalog
+class CatalogRequest {
+  final String userId;
+
+  const CatalogRequest({
+    required this.userId,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+    };
+  }
+
+  factory CatalogRequest.fromJson(Map<String, dynamic> json) {
+    return CatalogRequest(
+      userId: json['userId'] as String,
+    );
+  }
+}
+
 /// Legacy - keeping for compatibility
 class SimpleStoryState {
   final String narrative;

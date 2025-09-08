@@ -1,9 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'library_screen.dart';
+import '../services/secure_api_service.dart';
+import '../services/secure_auth_manager.dart';
+import '../services/state_manager.dart';
 
-class AgeVerificationScreen extends StatelessWidget {
+class AgeVerificationScreen extends StatefulWidget {
   const AgeVerificationScreen({super.key});
+
+  @override
+  State<AgeVerificationScreen> createState() => _AgeVerificationScreenState();
+}
+
+class _AgeVerificationScreenState extends State<AgeVerificationScreen> {
+  bool _isLoadingAccount = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccountBalance();
+  }
+
+  Future<void> _loadAccountBalance() async {
+    setState(() {
+      _isLoadingAccount = true;
+    });
+
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      if (userId != null) {
+        final account = await SecureApiService.getAccountInfo(userId);
+        await IFEStateManager.saveTokens(account.tokenBalance);
+        debugPrint('Account balance loaded: ${account.tokenBalance} tokens for user: $userId');
+      } else {
+        debugPrint('No user ID found, using 0 tokens');
+        await IFEStateManager.saveTokens(0);
+      }
+    } catch (e) {
+      debugPrint('Failed to load account balance: $e');
+      // On error, use 0 tokens as fallback
+      await IFEStateManager.saveTokens(0);
+    }
+
+    setState(() {
+      _isLoadingAccount = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +149,7 @@ class AgeVerificationScreen extends StatelessWidget {
                     width: 120,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () => _enterApp(context),
+                      onPressed: _isLoadingAccount ? null : () => _enterApp(context),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.purple,
                         foregroundColor: Colors.white,
@@ -116,13 +158,22 @@ class AgeVerificationScreen extends StatelessWidget {
                         ),
                         elevation: 4,
                       ),
-                      child: const Text(
-                        'Yes, I am 18+',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: _isLoadingAccount 
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Yes, I am 18+',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                     ),
                   ),
                 ],

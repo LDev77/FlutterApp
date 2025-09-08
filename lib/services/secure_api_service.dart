@@ -68,33 +68,69 @@ class SecureApiService {
     }
   }
   
-  /// Get user's token balance from server
+  /// Get catalog data from server
+  static Future<Map<String, dynamic>> getCatalog(String userId) async {
+    try {
+      final request = CatalogRequest(userId: userId);
+      final response = await http.post(
+        Uri.parse('$baseUrl/catalog'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(request.toJson()),
+      ).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        final catalogData = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('Catalog loaded from API for user: ${userId.substring(0, 8)}...');
+        return catalogData;
+      } else if (response.statusCode == 401) {
+        throw UnauthorizedException('Invalid or expired user ID');
+      } else {
+        throw Exception('Failed to get catalog: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Failed to get catalog from API: $e');
+      rethrow;
+    }
+  }
+
+  /// Get user account info including token balance from server
+  static Future<AccountResponse> getAccountInfo(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/account/${Uri.encodeComponent(userId)}'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final account = AccountResponse.fromJson(responseData);
+        debugPrint('Account info loaded for user: ${userId.substring(0, 8)}... with ${account.tokenBalance} tokens');
+        return account;
+      } else if (response.statusCode == 401) {
+        throw UnauthorizedException('Invalid or expired user ID');
+      } else {
+        throw Exception('Failed to get account info: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Failed to get account info: $e');
+      rethrow;
+    }
+  }
+
+  /// Get user's token balance from server (legacy method - now uses getAccountInfo)
   static Future<int> getUserTokenBalance() async {
     final userId = await SecureAuthManager.getUserId();
     if (userId == null) {
       throw Exception('User not authenticated - no secure user ID found');
     }
     
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/$userId/tokens'),
-        headers: {
-          'Accept': 'application/json',
-        },
-      );
-      
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-        return responseData['tokenBalance'] as int;
-      } else if (response.statusCode == 401) {
-        throw UnauthorizedException('Invalid or expired user ID');
-      } else {
-        throw Exception('Failed to get token balance: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Failed to get token balance: $e');
-      rethrow;
-    }
+    final account = await getAccountInfo(userId);
+    return account.tokenBalance;
   }
   
   /// Check if user is authenticated and has valid credentials
