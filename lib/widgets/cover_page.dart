@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/story.dart';
 import 'optimized_image.dart';
 
-class CoverPage extends StatelessWidget {
+class CoverPage extends StatefulWidget {
   final Story story;
   final int currentTurn;
   final int totalTurns;
@@ -17,6 +17,58 @@ class CoverPage extends StatelessWidget {
     required this.onContinue,
     required this.onClose,
   });
+
+  @override
+  State<CoverPage> createState() => _CoverPageState();
+}
+
+class _CoverPageState extends State<CoverPage> {
+  bool _isExpanded = false; // Start collapsed to test ellipsis
+  bool _hasOverflow = true; // Force true for testing ellipsis
+
+  @override
+  void initState() {
+    super.initState();
+    // Calculate overflow detection after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _calculateTextOverflow();
+    });
+  }
+
+  void _calculateTextOverflow() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    final textStyle = TextStyle(
+      color: Colors.white.withOpacity(0.9),
+      fontSize: 16,
+      height: 1.4,
+    );
+    
+    // Test with maxLines to see if text gets cut off with ellipsis
+    final textPainter = TextPainter(
+      text: TextSpan(text: widget.story.description, style: textStyle),
+      maxLines: 5, // Same as our collapsed maxLines
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: screenWidth - 48); // Account for horizontal padding
+    
+    // Check if the text was truncated
+    final fullTextPainter = TextPainter(
+      text: TextSpan(text: widget.story.description, style: textStyle),
+      maxLines: null,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: screenWidth - 48);
+    
+    setState(() {
+      _hasOverflow = textPainter.didExceedMaxLines;
+      print('DEBUG: _hasOverflow = $_hasOverflow, didExceedMaxLines = ${textPainter.didExceedMaxLines}');
+    });
+  }
+
+  void _toggleExpansion() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +95,7 @@ class CoverPage extends StatelessWidget {
     }
 
     return Hero(
-      tag: 'book_${story.id}',
+      tag: 'book_${widget.story.id}',
       child: Scaffold(
         body: Stack(
           fit: StackFit.expand,
@@ -56,7 +108,7 @@ class CoverPage extends StatelessWidget {
                 width: coverWidth,
                 height: coverHeight,
                 child: OptimizedImageWidget(
-                  imageUrl: story.coverUrl,
+                  imageUrl: widget.story.coverUrl,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -67,7 +119,7 @@ class CoverPage extends StatelessWidget {
               top: topPadding + 16,
               left: 20,
               child: GestureDetector(
-                onTap: onClose,
+                onTap: widget.onClose,
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -83,53 +135,111 @@ class CoverPage extends StatelessWidget {
               ),
             ),
 
-            // Bottom description card that layers over the cover
+            // Bottom-pinned expandable overlay - consistent positioning
             Positioned(
-              bottom: 0,
+              bottom: 50, // Single consistent offset from bottom
               left: 0,
               right: 0,
               child: GestureDetector(
-                onTap: onContinue,
-                child: Container(
-                  padding: EdgeInsets.only(
+                onTap: widget.onContinue,
+                onPanUpdate: (details) {
+                  // Handle swipe gestures if overflow exists
+                  if (!_hasOverflow) return;
+                  
+                  if (details.delta.dy > 5 && _isExpanded) {
+                    // Swipe down to collapse
+                    _toggleExpansion();
+                  } else if (details.delta.dy < -5 && !_isExpanded) {
+                    // Swipe up to expand
+                    _toggleExpansion();
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  height: _isExpanded ? null : screenHeight * 0.3, // 30% of screen height when collapsed
+                  constraints: _isExpanded ? null : BoxConstraints(maxHeight: screenHeight * 0.3),
+                  padding: const EdgeInsets.only(
                     left: 24,
                     right: 24,
                     top: 32,
-                    bottom: bottomPadding + 80, // Extra space above caret button area
+                    bottom: 0, // No bottom padding - positioned from bottom
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7), // 70% opaque for debugging
-                    borderRadius: BorderRadius.only(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.5), // 50% at top
+                        Colors.black, // 100% at bottom
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(16),
                       topRight: Radius.circular(16),
                     ),
                   ),
-                  child: Stack(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: _isExpanded ? MainAxisAlignment.start : MainAxisAlignment.end, // Bottom align when collapsed
                     children: [
-                      // Description text (no ellipsis, flows up as needed)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 40), // Space for Turn N
+                      // Description text
+                      Flexible(
                         child: Text(
-                          story.description,
+                          widget.story.description,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 16,
                             height: 1.4,
                           ),
+                          maxLines: _hasOverflow && !_isExpanded ? 5 : null,
+                          overflow: _hasOverflow && !_isExpanded ? TextOverflow.ellipsis : TextOverflow.visible,
                         ),
                       ),
-
-                      // Turn info positioned in absolute lower right corner
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Text(
-                          'Turn $currentTurn',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      
+                      // Bottom row with Turn N and arrow
+                      Container(
+                        height: 30,
+                        margin: const EdgeInsets.only(top: 8),
+                        child: Stack(
+                          children: [
+                            // Turn N - always bottom right
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Text(
+                                'Turn ${widget.currentTurn}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            
+                            // Arrow - center bottom (only if overflow)
+                            if (_hasOverflow)
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: _toggleExpansion,
+                                  child: Center(
+                                    child: AnimatedRotation(
+                                      duration: const Duration(milliseconds: 300),
+                                      turns: _isExpanded ? 0 : 0.5,
+                                      child: Icon(
+                                        Icons.keyboard_arrow_down,
+                                        color: Colors.white.withOpacity(0.8),
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ],
