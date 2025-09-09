@@ -85,6 +85,9 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
         print('Populated local storage from API for ${widget.story.id}');
         
+        // Update metadata cache
+        await IFEStateManager.updateStoryProgress(widget.story.id, _playthrough!.turnHistory.length);
+        
         // Navigate to the last turn (where input cluster is)
         final lastTurnIndex = _playthrough!.turnHistory.length;
         setState(() {
@@ -360,7 +363,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   // For non-interactive pages (history)
   Widget _buildStaticContent(TurnData turn) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 90), // Extra bottom padding to avoid navigation carets
       physics: const ClampingScrollPhysics(),
       child: TurnPageContent(turn: turn),
     );
@@ -522,6 +525,10 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       print('DEBUG: New turn options count: ${response.options.length}');
       await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
       print('DEBUG: Complete save operation completed - user can be anywhere in story');
+      
+      // Update metadata cache with new progress and token spend
+      final tokenCost = response.options.isNotEmpty ? 1 : 0;
+      await IFEStateManager.updateStoryProgress(widget.story.id, _playthrough!.turnHistory.length, tokensSpent: tokenCost);
 
       // Activate input cluster for new input (rebuild UI)
       setState(() {});

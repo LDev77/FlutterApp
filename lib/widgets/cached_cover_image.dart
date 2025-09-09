@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import '../models/story_metadata.dart';
 
 class CachedCoverImage extends StatelessWidget {
   final String imageUrl;
@@ -9,6 +10,7 @@ class CachedCoverImage extends StatelessWidget {
   final double? width;
   final double? height;
   final BorderRadius? borderRadius;
+  final StoryMetadata? metadata;
 
   const CachedCoverImage({
     super.key,
@@ -17,16 +19,23 @@ class CachedCoverImage extends StatelessWidget {
     this.width,
     this.height,
     this.borderRadius,
+    this.metadata,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Prepend base URL if the image URL doesn't contain a domain
+    String fullImageUrl = imageUrl;
+    if (!imageUrl.startsWith('http') && !imageUrl.startsWith('https://')) {
+      fullImageUrl = 'https://localhost:7161/$imageUrl';
+    }
+    
     Widget imageWidget;
     
     if (kIsWeb) {
       // Web fallback - use regular Image.network with built-in caching
       imageWidget = Image.network(
-        imageUrl,
+        fullImageUrl,
         fit: fit,
         width: width,
         height: height,
@@ -54,7 +63,7 @@ class CachedCoverImage extends StatelessWidget {
     } else {
       // Mobile platforms - use CachedNetworkImage for enhanced caching
       imageWidget = CachedNetworkImage(
-        imageUrl: imageUrl,
+        imageUrl: fullImageUrl,
         fit: fit,
         width: width,
         height: height,
@@ -92,7 +101,84 @@ class CachedCoverImage extends StatelessWidget {
       );
     }
 
+    // Add progress indicator and badges if metadata is provided
+    if (metadata != null) {
+      imageWidget = _buildImageWithProgressIndicator(imageWidget);
+    }
+
     return imageWidget;
+  }
+
+  Widget _buildImageWithProgressIndicator(Widget imageWidget) {
+    if (metadata == null) return imageWidget;
+    
+    final bool hasProgress = metadata!.currentTurn > 0;
+    final bool isRecent = metadata!.lastPlayedAt != null && 
+        DateTime.now().difference(metadata!.lastPlayedAt!).inDays < 7;
+
+    return Stack(
+      children: [
+        imageWidget,
+        
+        // Progress indicator (bottom)
+        if (hasProgress)
+          Positioned(
+            bottom: 8,
+            left: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    metadata!.isCompleted ? Icons.check_circle : Icons.play_arrow,
+                    color: metadata!.isCompleted ? Colors.green : Colors.purple,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    metadata!.isCompleted 
+                        ? 'Completed'
+                        : '${metadata!.currentTurn} Turns',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        
+        // Recent badge (top right)
+        if (isRecent && !metadata!.isCompleted)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Recent',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 

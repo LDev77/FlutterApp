@@ -16,8 +16,14 @@ class OptimizedImageWidget extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
+    // Prepend base URL if the image URL doesn't contain a domain
+    String fullImageUrl = imageUrl;
+    if (!imageUrl.startsWith('http') && !imageUrl.startsWith('https://')) {
+      fullImageUrl = 'https://localhost:7161/$imageUrl';
+    }
+    
     return Image.network(
-      imageUrl,
+      fullImageUrl,
       fit: fit,
       width: width,
       height: height,

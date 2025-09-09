@@ -9,7 +9,9 @@
       "Read(//e/**)",
       "Bash(python:*)",
       "Bash(/bashes)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(find:*)",
+      "Bash(dart run build_runner build:*)"
     ],
     "deny": [],
     "ask": []

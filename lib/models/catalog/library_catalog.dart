@@ -1,5 +1,6 @@
 import 'genre_row.dart';
 import 'catalog_story.dart';
+import '../story_metadata.dart';
 
 class LibraryCatalog {
   final String appTitle;
@@ -53,6 +54,55 @@ class LibraryCatalog {
       }
     }
     return (genreRow: null, story: null);
+  }
+
+  /// Sort stories within each genre by last played date (most recent first)
+  LibraryCatalog sortStoriesByLastPlayed(List<StoryMetadata> allMetadata) {
+    // Create a map for quick metadata lookups
+    final metadataMap = <String, StoryMetadata>{};
+    for (final metadata in allMetadata) {
+      metadataMap[metadata.storyId] = metadata;
+    }
+
+    // Sort stories within each genre row
+    final sortedGenreRows = genreRows.map((genreRow) {
+      final sortedStories = List<CatalogStory>.from(genreRow.stories);
+      
+      sortedStories.sort((a, b) {
+        final aMetadata = metadataMap[a.storyId];
+        final bMetadata = metadataMap[b.storyId];
+        
+        // Stories with lastPlayedAt come first, sorted by most recent
+        if (aMetadata?.lastPlayedAt != null && bMetadata?.lastPlayedAt != null) {
+          return bMetadata!.lastPlayedAt!.compareTo(aMetadata!.lastPlayedAt!);
+        }
+        
+        // Played stories come before unplayed
+        if (aMetadata?.lastPlayedAt != null && bMetadata?.lastPlayedAt == null) {
+          return -1;
+        }
+        if (aMetadata?.lastPlayedAt == null && bMetadata?.lastPlayedAt != null) {
+          return 1;
+        }
+        
+        // Both unplayed - maintain original order
+        return 0;
+      });
+
+      return GenreRow(
+        genreTitle: genreRow.genreTitle,
+        subtitle: genreRow.subtitle,
+        stories: sortedStories,
+      );
+    }).toList();
+
+    return LibraryCatalog(
+      appTitle: appTitle,
+      headerSubtitle: headerSubtitle,
+      welcomeMessage: welcomeMessage,
+      genreRows: sortedGenreRows,
+      lastUpdated: lastUpdated,
+    );
   }
 
   @override

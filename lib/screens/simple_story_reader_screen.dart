@@ -67,6 +67,9 @@ class _SimpleStoryReaderScreenState extends State<SimpleStoryReaderScreen> {
         print('API Response - StoredState length: ${response.storedState.length}');
         print('Simple state - Narrative: ${_currentStoryState!.narrative.substring(0, _currentStoryState!.narrative.length.clamp(0, 100))}...');
         await IFEStateManager.saveStoryState(widget.story.id, _currentStoryState!);
+        
+        // Update metadata cache
+        await IFEStateManager.updateStoryProgress(widget.story.id, 1);
       }
 
       setState(() {
@@ -121,6 +124,12 @@ class _SimpleStoryReaderScreenState extends State<SimpleStoryReaderScreen> {
       // Update local state with new response
       final newState = SimpleStoryState.fromPlayResponse(response);
       await IFEStateManager.saveStoryState(widget.story.id, newState);
+      
+      // Update metadata cache with new progress and token spend
+      final existingMetadata = IFEStateManager.getStoryMetadata(widget.story.id);
+      final newTurnCount = (existingMetadata?.currentTurn ?? 0) + 1;
+      final tokenCost = response.options.isNotEmpty ? 1 : 0;
+      await IFEStateManager.updateStoryProgress(widget.story.id, newTurnCount, tokensSpent: tokenCost);
 
       setState(() {
         _currentStoryState = newState;

@@ -3,17 +3,24 @@ import 'dart:convert';
 import '../models/api_models.dart';
 import '../models/story.dart';
 import '../models/turn_data.dart';
+import '../models/story_metadata.dart';
 
 class IFEStateManager {
   static const String _stateBoxName = 'ife_states';
   static const String _tokenBoxName = 'user_tokens';
   static const String _progressBoxName = 'story_progress';
+  static const String _metadataBoxName = 'story_metadata';
   
   static Future<void> initialize() async {
     await Hive.initFlutter();
+    
+    // Register the StoryMetadata adapter
+    Hive.registerAdapter(StoryMetadataAdapter());
+    
     await Hive.openBox(_stateBoxName);
     await Hive.openBox(_tokenBoxName);
     await Hive.openBox(_progressBoxName);
+    await Hive.openBox<StoryMetadata>(_metadataBoxName);
   }
   
   // Store simplified story state (narrative, options, storedState)
@@ -152,10 +159,58 @@ class IFEStateManager {
     return (progress?['completion'] as double?) ?? 0.0;
   }
   
+  // Story metadata management
+  static Future<void> saveStoryMetadata(StoryMetadata metadata) async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    await box.put(metadata.storyId, metadata);
+  }
+  
+  static StoryMetadata? getStoryMetadata(String storyId) {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    return box.get(storyId);
+  }
+  
+  static List<StoryMetadata> getAllStoryMetadata() {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    return box.values.toList();
+  }
+  
+  static Future<void> updateStoryProgress(String storyId, int currentTurn, {int? tokensSpent}) async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final existing = box.get(storyId);
+    
+    final metadata = existing?.copyWith(
+      currentTurn: currentTurn,
+      lastPlayedAt: DateTime.now(),
+      totalTokensSpent: existing.totalTokensSpent + (tokensSpent ?? 0),
+    ) ?? StoryMetadata(
+      storyId: storyId,
+      currentTurn: currentTurn,
+      lastPlayedAt: DateTime.now(),
+      totalTokensSpent: tokensSpent ?? 0,
+    );
+    
+    await box.put(storyId, metadata);
+  }
+  
+  static Future<void> markStoryCompleted(String storyId) async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final existing = box.get(storyId);
+    
+    if (existing != null) {
+      final completedMetadata = existing.copyWith(
+        isCompleted: true,
+        lastPlayedAt: DateTime.now(),
+      );
+      await box.put(storyId, completedMetadata);
+    }
+  }
+  
   // Clear all data for testing
   static Future<void> clearAllData() async {
     await Hive.box(_stateBoxName).clear();
     await Hive.box(_tokenBoxName).clear();
     await Hive.box(_progressBoxName).clear();
+    await Hive.box<StoryMetadata>(_metadataBoxName).clear();
   }
 }

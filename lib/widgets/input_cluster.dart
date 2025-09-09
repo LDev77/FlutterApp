@@ -7,7 +7,7 @@ class InputCluster extends StatefulWidget {
   final TextEditingController inputController;
   final FocusNode inputFocusNode;
   final VoidCallback onSendInput;
-  
+
   const InputCluster({
     super.key,
     required this.turn,
@@ -37,7 +37,10 @@ class _InputClusterState extends State<InputCluster> {
         });
       }
     });
-    
+
+    // Initialize input state based on existing text
+    _hasInputText = widget.inputController.text.trim().isNotEmpty;
+
     // Listen for layout changes to update height
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateInputClusterHeight();
@@ -121,15 +124,15 @@ class _InputClusterState extends State<InputCluster> {
                       textCapitalization: TextCapitalization.sentences,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 12),
-                  
+
                   // Button row: Options and Send
                   Row(
                     children: [
                       // Left margin for navigation caret space
                       const SizedBox(width: 80), // Space for left navigation caret (70px + 10px margin)
-                      
+
                       // Options button (shortened on left side)
                       Expanded(
                         child: GestureDetector(
@@ -145,11 +148,9 @@ class _InputClusterState extends State<InputCluster> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                             decoration: BoxDecoration(
-                              color: _showOptions 
-                                  ? Colors.purple.withOpacity(0.1)
-                                  : Theme.of(context).cardColor,
+                              color: _showOptions ? Colors.purple.withOpacity(0.1) : Theme.of(context).cardColor,
                               border: Border.all(
-                                color: _showOptions 
+                                color: _showOptions
                                     ? Colors.purple.withOpacity(0.3)
                                     : Colors.purple.withOpacity(0.2), // Always show purple tint to indicate enabled
                                 width: 1,
@@ -161,16 +162,16 @@ class _InputClusterState extends State<InputCluster> {
                               children: [
                                 Icon(
                                   _showOptions ? Icons.expand_less : Icons.expand_more,
-                                  color: _showOptions 
+                                  color: _showOptions
                                       ? Colors.purple
                                       : Colors.purple.withOpacity(0.8), // Always show purple to indicate enabled
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '...or pick option',
+                                  '...or pick an option',
                                   style: TextStyle(
-                                    color: _showOptions 
+                                    color: _showOptions
                                         ? Colors.purple
                                         : Colors.purple.withOpacity(0.8), // Always show purple to indicate enabled
                                     fontSize: 16,
@@ -182,48 +183,40 @@ class _InputClusterState extends State<InputCluster> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(width: 12),
-                      
-                      // Send button (state-aware styling)
+
+                      // Send button (circular, same size as navigation carets)
                       GestureDetector(
                         onTap: _hasInputText ? widget.onSendInput : null, // Disable when empty
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                          width: 50,
+                          height: 50,
                           decoration: BoxDecoration(
-                            gradient: _hasInputText 
-                              ? LinearGradient(
-                                  colors: [Colors.purple, Colors.purple.shade600],
-                                )
-                              : LinearGradient(
-                                  colors: [Colors.grey.shade400, Colors.grey.shade500],
-                                ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: _hasInputText ? [
-                              BoxShadow(
-                                color: Colors.purple.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ] : [],
+                            gradient: _hasInputText
+                                ? LinearGradient(
+                                    colors: [Colors.purple, Colors.purple.shade600],
+                                  )
+                                : LinearGradient(
+                                    colors: [Colors.grey.shade400, Colors.grey.shade500],
+                                  ),
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: _hasInputText
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.purple.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : [],
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Coin icon
-                              Icon(
-                                Icons.auto_awesome, // Coin/token icon
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 6),
-                              // Right arrow
-                              Icon(
-                                Icons.arrow_forward,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ],
+                          child: const Center(
+                            child: Text(
+                              '🪙',
+                              style: TextStyle(fontSize: 20),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ),
                       ),
@@ -234,7 +227,7 @@ class _InputClusterState extends State<InputCluster> {
             ),
           ),
         ),
-        
+
         // Options overlay (positioned above, doesn't affect layout)
         if (_showOptions)
           Positioned(
@@ -265,9 +258,9 @@ class _InputClusterState extends State<InputCluster> {
                   children: [
                     const SizedBox(height: 8),
                     ...widget.turn.availableOptions.map((option) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: _buildOptionButton(option),
-                    )),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: _buildOptionButton(option),
+                        )),
                     const SizedBox(height: 8),
                   ],
                 ),
@@ -279,58 +272,41 @@ class _InputClusterState extends State<InputCluster> {
   }
 
   Widget _buildOptionButton(String option) {
-    final tokenCost = 1;
-    final hasTokens = IFEStateManager.getTokens() >= tokenCost;
-    
+    const tokenCost = 1;
+
     return GestureDetector(
-      onTap: hasTokens ? () => _handleOptionSelect(option) : null,
+      onTap: () => _handleOptionSelect(option),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: hasTokens 
-              ? Colors.purple.withOpacity(0.1)
-              : Theme.of(context).disabledColor.withOpacity(0.1),
-          border: Border.all(
-            color: hasTokens 
-                ? Colors.purple.withOpacity(0.3)
-                : Theme.of(context).disabledColor.withOpacity(0.3),
-            width: 1,
+          gradient: LinearGradient(
+            colors: [Colors.purple, Colors.purple.shade600],
           ),
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Expanded(
               child: Text(
                 option,
-                style: TextStyle(
-                  color: hasTokens 
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).disabledColor,
+                style: const TextStyle(
+                  color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: hasTokens 
-                    ? Colors.purple.withOpacity(0.2)
-                    : Theme.of(context).disabledColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '$tokenCost 🪙',
-                style: TextStyle(
-                  color: hasTokens 
-                      ? Colors.purple
-                      : Theme.of(context).disabledColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            const Text(
+              '🪙',
+              style: TextStyle(fontSize: 16),
             ),
           ],
         ),
@@ -341,13 +317,13 @@ class _InputClusterState extends State<InputCluster> {
   void _handleOptionSelect(String option) {
     // Set the input field to the selected option
     widget.inputController.text = option;
-    
+
     // Update input state to enable send button
     setState(() {
       _showOptions = false;
       _hasInputText = true;
     });
-    
+
     // Immediately send the selected option
     widget.onSendInput();
   }

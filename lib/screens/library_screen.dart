@@ -49,11 +49,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
       // Catalog should already be cached from splash screen
       // Use getCatalog() but it will return cached data instantly
       CatalogService.getCatalog().then((catalog) {
+        // Get all story metadata and sort catalog by last played
+        final allMetadata = IFEStateManager.getAllStoryMetadata();
+        final sortedCatalog = catalog.sortStoriesByLastPlayed(allMetadata);
+        
         setState(() {
-          _catalog = catalog;
+          _catalog = sortedCatalog;
           _isLoading = false;
         });
-        debugPrint('Library screen using cached catalog data');
+        debugPrint('Library screen using cached catalog data with ${allMetadata.length} metadata entries');
       }).catchError((e) {
         setState(() {
           _errorMessage = 'Failed to load cached catalog: $e';
@@ -189,7 +193,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Premium Interactive Fiction',  // Keep consistent header
+                      _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -199,7 +203,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Choose your adventure in immersive stories',  // Keep consistent subtitle
+                      _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 16,
@@ -331,8 +335,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Widget _buildBookCover(CatalogStory story, double bookWidth, double bookHeight) {
-    final isStarted = IFEStateManager.isStoryStarted(story.storyId);
-    final completion = IFEStateManager.getStoryCompletion(story.storyId);
+    final metadata = IFEStateManager.getStoryMetadata(story.storyId);
     
     return GestureDetector(
       onTap: () => _openStory(story),
@@ -348,31 +351,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12.0),
               child: Stack(
-                fit: StackFit.expand,
                 children: [
-                  // Cover image
-                  CachedCoverImage(
-                    imageUrl: story.coverImageUri,
-                    fit: BoxFit.cover,
-                    borderRadius: BorderRadius.circular(12.0),
-                  ),
-                  
-                  // Gradient overlay
+                  // Cover image maintaining full 1:1.62 aspect ratio
                   Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.7),
-                            Colors.black.withOpacity(0.9),
-                          ],
-                          stops: const [0.0, 0.4, 0.8, 1.0],
-                        ),
-                      ),
+                    child: CachedCoverImage(
+                      imageUrl: story.coverImageUri,
+                      fit: BoxFit.cover,
+                      metadata: metadata,
                     ),
                   ),
                   
@@ -398,107 +383,103 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       ),
                     ),
                   
-                  // Progress indicator
-                  if (isStarted)
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.purple,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${(completion * 100).round()}%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  
-                  // Title and description
+                  // Floating gradient overlay with content at bottom
                   Positioned(
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            story.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (story.subtitle.isNotEmpty) ...[
-                            const SizedBox(height: 4),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.7),
+                            Colors.black.withOpacity(0.9),
+                          ],
+                          stops: const [0.0, 0.6, 1.0],
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
-                              story.subtitle,
-                              style: TextStyle(
-                                color: Colors.purple.withOpacity(0.9),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                              story.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                                 height: 1.2,
                               ),
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                          const SizedBox(height: 6),
-                          Text(
-                            story.marketingCopy,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.8),
-                              fontSize: 13,
-                              height: 1.3,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    isStarted ? Icons.play_circle_filled : Icons.play_circle_outline,
-                                    color: Colors.purple,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    isStarted ? 'Continue' : 'Start Reading',
-                                    style: const TextStyle(
-                                      color: Colors.purple,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            if (story.subtitle.isNotEmpty) ...[
+                              const SizedBox(height: 4),
                               Text(
-                                '~${story.estimatedTurns} turns',
+                                story.subtitle,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
+                                  color: Colors.purple.withOpacity(0.9),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.2,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            Text(
+                              story.marketingCopy,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 13,
+                                height: 1.3,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      metadata?.currentTurn != null && metadata!.currentTurn > 0 ? Icons.play_circle_filled : Icons.play_circle_outline,
+                                      color: Colors.purple,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      metadata?.currentTurn != null && metadata!.currentTurn > 0 ? 'Continue' : 'Experience',
+                                      style: const TextStyle(
+                                        color: Colors.purple,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  '~${story.estimatedTurns} turns',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
