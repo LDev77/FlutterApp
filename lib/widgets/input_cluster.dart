@@ -131,11 +131,14 @@ class _InputClusterState extends State<InputCluster> {
                   Row(
                     children: [
                       // Left margin for navigation caret space
-                      const SizedBox(width: 80), // Space for left navigation caret (70px + 10px margin)
+                      const SizedBox(width: 60), // Tightened spacing (70px + 10px margin -> 60px)
 
-                      // Options button (shortened on left side)
+                      // Center the options button at 25% width
                       Expanded(
-                        child: GestureDetector(
+                        child: Center(
+                          child: SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.25, // 25% of screen width
+                            child: GestureDetector(
                           onTap: () {
                             setState(() {
                               _showOptions = !_showOptions;
@@ -179,6 +182,8 @@ class _InputClusterState extends State<InputCluster> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
                             ),
                           ),
                         ),

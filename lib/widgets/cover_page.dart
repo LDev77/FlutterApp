@@ -94,9 +94,8 @@ class _CoverPageState extends State<CoverPage> {
       coverWidth = coverHeight / 1.62;
     }
 
-    return Hero(
-      tag: 'book_${widget.story.id}',
-      child: Scaffold(
+    return Scaffold(
+        backgroundColor: Color(0xFF121212), // Dark mode gray background
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -137,7 +136,7 @@ class _CoverPageState extends State<CoverPage> {
 
             // Bottom-pinned expandable overlay - consistent positioning
             Positioned(
-              bottom: 50, // Single consistent offset from bottom
+              bottom: 0, // Flush with bottom of screen
               left: 0,
               right: 0,
               child: GestureDetector(
@@ -157,13 +156,20 @@ class _CoverPageState extends State<CoverPage> {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  height: _isExpanded ? null : screenHeight * 0.3, // 30% of screen height when collapsed
-                  constraints: _isExpanded ? null : BoxConstraints(maxHeight: screenHeight * 0.3),
+                  constraints: _isExpanded 
+                    ? BoxConstraints(
+                        minHeight: screenHeight * 0.3, // Minimum 30% when expanded
+                        maxHeight: screenHeight * 0.8, // Maximum 80% when expanded
+                      )
+                    : BoxConstraints(
+                        minHeight: screenHeight * 0.3, // Minimum 30% when collapsed
+                        maxHeight: screenHeight * 0.3, // Maximum 30% when collapsed
+                      ),
                   padding: const EdgeInsets.only(
                     left: 24,
                     right: 24,
                     top: 32,
-                    bottom: 0, // No bottom padding - positioned from bottom
+                    bottom: 50, // Internal bottom padding
                   ),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -181,8 +187,8 @@ class _CoverPageState extends State<CoverPage> {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: _isExpanded ? MainAxisAlignment.start : MainAxisAlignment.end, // Bottom align when collapsed
+                    mainAxisSize: MainAxisSize.max, // Take all available space in container
+                    mainAxisAlignment: MainAxisAlignment.end, // Always bottom align to keep text bottom edge fixed
                     children: [
                       // Description text
                       Flexible(
@@ -193,8 +199,9 @@ class _CoverPageState extends State<CoverPage> {
                             fontSize: 16,
                             height: 1.4,
                           ),
-                          maxLines: _hasOverflow && !_isExpanded ? 5 : null,
-                          overflow: _hasOverflow && !_isExpanded ? TextOverflow.ellipsis : TextOverflow.visible,
+                          textAlign: TextAlign.left,
+                          maxLines: _isExpanded ? null : 7, // No limit when expanded, 7 lines when collapsed
+                          overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis, // No overflow when expanded, ellipsis when collapsed
                         ),
                       ),
                       
@@ -249,7 +256,6 @@ class _CoverPageState extends State<CoverPage> {
             ),
           ],
         ),
-      ),
     );
   }
 }

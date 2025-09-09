@@ -348,6 +348,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: Material(
             elevation: 8.0,
             borderRadius: BorderRadius.circular(12.0),
+            color: Color(0xFF121212), // Dark gray background
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12.0),
               child: Stack(
@@ -395,10 +396,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.7),
+                            Colors.black.withOpacity(0.66),
                             Colors.black.withOpacity(0.9),
                           ],
-                          stops: const [0.0, 0.6, 1.0],
+                          stops: const [0.0, 0.7, 1.0],
                         ),
                         borderRadius: const BorderRadius.only(
                           bottomLeft: Radius.circular(12),
@@ -411,25 +412,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              story.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                height: 1.2,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
                             if (story.subtitle.isNotEmpty) ...[
                               const SizedBox(height: 4),
                               Text(
                                 story.subtitle,
-                                style: TextStyle(
-                                  color: Colors.purple.withOpacity(0.9),
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.bold,
                                   height: 1.2,
                                 ),
                                 maxLines: 1,
@@ -460,7 +450,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      metadata?.currentTurn != null && metadata!.currentTurn > 0 ? 'Continue' : 'Experience',
+                                      metadata?.currentTurn != null && metadata!.currentTurn > 0 ? 'Continue Turn ${metadata!.currentTurn}' : 'Experience',
                                       style: const TextStyle(
                                         color: Colors.purple,
                                         fontSize: 14,
@@ -468,13 +458,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                       ),
                                     ),
                                   ],
-                                ),
-                                Text(
-                                  '~${story.estimatedTurns} turns',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
-                                    fontSize: 12,
-                                  ),
                                 ),
                               ],
                             ),
