@@ -34,17 +34,79 @@ class InputClusterController {
 class _InputClusterState extends State<InputCluster> {
   bool _showOptions = false;
   final GlobalKey _inputClusterKey = GlobalKey();
+  final GlobalKey _optionsButtonKey = GlobalKey();
   double _inputClusterHeight = 120.0; // Default fallback
   bool _hasInputText = false; // Track if input field has content
+  OverlayEntry? _overlayEntry;
+  final LayerLink _layerLink = LayerLink();
   
   // Method to close options from parent
   void _closeOptions() {
     if (_showOptions) {
-      setState(() {
-        _showOptions = false;
-      });
-      widget.onOptionsVisibilityChanged?.call(false);
+      _hideOverlay();
     }
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) return; // Already showing
+    
+    _overlayEntry = OverlayEntry(
+      builder: (context) => CompositedTransformFollower(
+        link: _layerLink,
+        showWhenUnlinked: false,
+        offset: Offset(0, -(widget.turn.availableOptions.length * 70.0) - 9), // Position 15px lower (24-15=9)
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: MediaQuery.of(context).size.width - 32, // Full width minus margins
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).dividerColor.withOpacity(0.3),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  ...widget.turn.availableOptions.map((option) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: _buildOptionButton(option),
+                      )),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    setState(() {
+      _showOptions = true;
+    });
+    widget.onOptionsVisibilityChanged?.call(true);
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    setState(() {
+      _showOptions = false;
+    });
+    widget.onOptionsVisibilityChanged?.call(false);
   }
 
   @override
@@ -80,6 +142,23 @@ class _InputClusterState extends State<InputCluster> {
     }
   }
 
+  double _getOptionsButtonBottom() {
+    if (_optionsButtonKey.currentContext != null) {
+      final RenderBox buttonBox = _optionsButtonKey.currentContext!.findRenderObject() as RenderBox;
+      final RenderBox clusterBox = _inputClusterKey.currentContext!.findRenderObject() as RenderBox;
+      
+      // Get the position of the button relative to the input cluster
+      final Offset buttonPosition = buttonBox.localToGlobal(Offset.zero);
+      final Offset clusterPosition = clusterBox.localToGlobal(Offset.zero);
+      
+      // Calculate the bottom position of the button relative to the cluster
+      final double buttonBottomRelativeToCluster = buttonPosition.dy + buttonBox.size.height - clusterPosition.dy;
+      
+      return buttonBottomRelativeToCluster;
+    }
+    return _inputClusterHeight * 0.6; // Fallback to roughly where button would be
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -105,17 +184,19 @@ class _InputClusterState extends State<InputCluster> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Text input field
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).dividerColor.withOpacity(0.3),
-                        width: 1,
+                  // Text input field - wrapped with CompositedTransformTarget for anchoring
+                  CompositedTransformTarget(
+                    link: _layerLink,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).dividerColor.withOpacity(0.3),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    child: TextField(
+                      child: TextField(
                       controller: widget.inputController,
                       focusNode: widget.inputFocusNode,
                       onChanged: (text) {
@@ -143,6 +224,7 @@ class _InputClusterState extends State<InputCluster> {
                       maxLines: 4,
                       minLines: 2,
                       textCapitalization: TextCapitalization.sentences,
+                      ),
                     ),
                   ),
 
@@ -158,17 +240,14 @@ class _InputClusterState extends State<InputCluster> {
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
-                            setState(() {
-                              _showOptions = !_showOptions;
-                            });
-                            // Notify parent of options visibility change
-                            widget.onOptionsVisibilityChanged?.call(_showOptions);
-                            // Update height after state change
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              _updateInputClusterHeight();
-                            });
+                            if (_showOptions) {
+                              _hideOverlay();
+                            } else {
+                              _showOverlay();
+                            }
                           },
                           child: Container(
+                            key: _optionsButtonKey,
                             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                             decoration: BoxDecoration(
                               color: _showOptions ? Colors.purple.withOpacity(0.1) : Theme.of(context).cardColor,
@@ -250,46 +329,6 @@ class _InputClusterState extends State<InputCluster> {
             ),
           ),
         ),
-
-        // Options overlay (positioned above, doesn't affect layout)
-        if (_showOptions)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: _inputClusterHeight, // Directly on top of the input cluster
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: 1.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).dividerColor.withOpacity(0.3),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 8),
-                    ...widget.turn.availableOptions.map((option) => Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: _buildOptionButton(option),
-                        )),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -341,16 +380,19 @@ class _InputClusterState extends State<InputCluster> {
     // Set the input field to the selected option
     widget.inputController.text = option;
 
-    // Update input state to enable send button
+    // Hide the overlay and update state
+    _hideOverlay();
     setState(() {
-      _showOptions = false;
       _hasInputText = true;
     });
-    
-    // Notify parent of options visibility change
-    widget.onOptionsVisibilityChanged?.call(false);
 
     // Immediately send the selected option
     widget.onSendInput();
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    super.dispose();
   }
 }
