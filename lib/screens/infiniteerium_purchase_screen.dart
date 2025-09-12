@@ -494,8 +494,8 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              setState(() {}); // Refresh the balance display
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Close purchase screen and return to story
             },
             child: const Text('Continue'),
           ),

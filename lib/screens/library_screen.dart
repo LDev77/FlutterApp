@@ -46,9 +46,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _errorMessage = null;
       });
       
-      // Catalog should already be cached from splash screen
-      // Use getCatalog() but it will return cached data instantly
-      CatalogService.getCatalog().then((catalog) {
+      // Sweep stale pending states before loading catalog
+      IFEStateManager.sweepStaleStates().then((_) {
+        // Catalog should already be cached from splash screen
+        // Use getCatalog() but it will return cached data instantly
+        return CatalogService.getCatalog();
+      }).then((catalog) {
         // Get all story metadata and sort catalog by last played
         final allMetadata = IFEStateManager.getAllStoryMetadata();
         final sortedCatalog = catalog.sortStoriesByLastPlayed(allMetadata);
@@ -60,14 +63,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         debugPrint('Library screen using cached catalog data with ${allMetadata.length} metadata entries');
       }).catchError((e) {
         setState(() {
-          _errorMessage = 'Failed to load cached catalog: $e';
+          _errorMessage = 'Connection issue. Please retry in a bit.';
           _isLoading = false;
         });
         debugPrint('Library screen cached catalog error: $e');
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to load catalog: $e';
+        _errorMessage = 'Connection issue. Please retry in a bit.';
         _isLoading = false;
       });
       debugPrint('Library screen catalog load error: $e');
@@ -234,16 +237,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           child: Column(
                             children: [
                               Icon(
-                                Icons.error_outline,
+                                Icons.wifi_off,
                                 size: 64,
-                                color: Colors.red.withOpacity(0.7),
+                                color: Colors.orange.withOpacity(0.7),
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 _errorMessage!,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
+                                  color: Colors.orange.shade700,
                                   fontSize: 16,
                                 ),
                               ),

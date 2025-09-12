@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'secure_auth_manager.dart';
 import '../models/api_models.dart';
@@ -22,6 +23,12 @@ class SecureApiService {
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final playResponse = PlayResponse.fromJson(responseData);
+        
+        // Check for server error message in response
+        if (playResponse.error != null && playResponse.error!.isNotEmpty) {
+          throw ServerErrorException(playResponse.error!);
+        }
+        
         debugPrint('Story turn processed successfully for user: ${request.userId.substring(0, 8)}...');
         return playResponse;
       } else if (response.statusCode == 400) {
@@ -30,9 +37,13 @@ class SecureApiService {
         throw InsufficientTokensException(errorData['message'] ?? 'Insufficient tokens');
       } else if (response.statusCode == 401) {
         throw UnauthorizedException('Invalid or expired user ID');
+      } else if (response.statusCode == 408 || response.statusCode == 429 || response.statusCode >= 500) {
+        throw ServerBusyException('Looks like Infiniteer may be busy generating worlds. Try again soon. You were not charged a token.');
       } else {
-        throw Exception('API request failed with status ${response.statusCode}: ${response.body}');
+        throw Exception('Connection issue. Please retry in a bit.');
       }
+    } on TimeoutException {
+      throw ServerBusyException('Looks like Infiniteer may be busy generating worlds. Try again soon. You were not charged a token.');
     } catch (e) {
       debugPrint('Failed to make story turn API call: $e');
       rethrow;
@@ -60,7 +71,7 @@ class SecureApiService {
         debugPrint('Story introduction loaded: $storyId');
         return playResponse;
       } else {
-        throw Exception('Failed to get story introduction: ${response.statusCode}');
+        throw Exception('Connection issue. Please retry in a bit.');
       }
     } catch (e) {
       debugPrint('Failed to get story introduction: $e');
@@ -88,7 +99,7 @@ class SecureApiService {
       } else if (response.statusCode == 401) {
         throw UnauthorizedException('Invalid or expired user ID');
       } else {
-        throw Exception('Failed to get catalog: ${response.statusCode}');
+        throw Exception('Connection issue. Please retry in a bit.');
       }
     } catch (e) {
       debugPrint('Failed to get catalog from API: $e');
@@ -114,7 +125,7 @@ class SecureApiService {
       } else if (response.statusCode == 401) {
         throw UnauthorizedException('Invalid or expired user ID');
       } else {
-        throw Exception('Failed to get account info: ${response.statusCode}');
+        throw Exception('Connection issue. Please retry in a bit.');
       }
     } catch (e) {
       debugPrint('Failed to get account info: $e');
@@ -177,4 +188,22 @@ class UnauthorizedException implements Exception {
   
   @override
   String toString() => 'UnauthorizedException: $message';
+}
+
+/// Exception thrown when server is busy (timeout, 408, 429)
+class ServerBusyException implements Exception {
+  final String message;
+  ServerBusyException(this.message);
+  
+  @override
+  String toString() => 'ServerBusyException: $message';
+}
+
+/// Exception thrown when server returns an error message in response
+class ServerErrorException implements Exception {
+  final String message;
+  ServerErrorException(this.message);
+  
+  @override
+  String toString() => 'ServerErrorException: $message';
 }

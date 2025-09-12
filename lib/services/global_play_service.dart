@@ -1,0 +1,251 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../models/api_models.dart';
+import '../models/turn_data.dart';
+import '../models/story.dart';
+import 'secure_api_service.dart';
+import 'secure_auth_manager.dart';
+import 'state_manager.dart';
+
+/// Global service for managing play requests across the entire app
+/// Ensures data integrity and prevents resource leaks
+class GlobalPlayService {
+  static final Map<String, Completer<void>?> _activeRequests = {};
+  static final Map<String, List<Function(PlayResponse?, Exception?)>> _callbacks = {};
+
+  /// Register a callback for when a story turn completes
+  static void registerCallback(String storyId, Function(PlayResponse?, Exception?) callback) {
+    _callbacks.putIfAbsent(storyId, () => []);
+    _callbacks[storyId]!.add(callback);
+    debugPrint('Registered callback for story: $storyId');
+  }
+
+  /// Unregister a callback (typically called in dispose())
+  static void unregisterCallback(String storyId, Function(PlayResponse?, Exception?) callback) {
+    _callbacks[storyId]?.remove(callback);
+    if (_callbacks[storyId]?.isEmpty == true) {
+      _callbacks.remove(storyId);
+    }
+    debugPrint('Unregistered callback for story: $storyId');
+  }
+
+  /// Fire callbacks for a specific story
+  static void _fireCallbacks(String storyId, PlayResponse? response, Exception? error) {
+    final callbacks = _callbacks[storyId];
+    if (callbacks != null) {
+      for (final callback in callbacks) {
+        try {
+          callback(response, error);
+        } catch (e) {
+          debugPrint('Error in callback for story $storyId: $e');
+        }
+      }
+    }
+  }
+
+  /// Play a story turn with global management
+  static Future<void> playStoryTurn({
+    required String storyId,
+    required String input,
+    required TurnData previousTurn,
+  }) async {
+    // Cancel any existing request for this story
+    await _cancelRequest(storyId);
+
+    final completer = Completer<void>();
+    _activeRequests[storyId] = completer;
+
+    debugPrint('Starting global play request for story: $storyId');
+
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      if (userId == null) throw Exception('User not authenticated');
+
+      // Create PlayRequest with all required fields
+      final request = PlayRequest(
+        userId: userId,
+        storyId: storyId,
+        input: input,
+        storedState: previousTurn.encryptedGameState,
+        displayedNarrative: previousTurn.narrativeMarkdown,
+        options: previousTurn.availableOptions,
+      );
+
+      debugPrint('Sending POST /play request for story: $storyId');
+      final response = await SecureApiService.playStoryTurn(request);
+      debugPrint('Received API response for story: $storyId - narrative length: ${response.narrative.length}');
+
+      // ALWAYS save the response regardless of UI state
+      await _savePlayResponse(storyId, input, previousTurn, response);
+
+      // Fire callbacks to any listening UI components
+      _fireCallbacks(storyId, response, null);
+
+      completer.complete();
+    } catch (e) {
+      debugPrint('Failed to process API response for story $storyId: $e');
+      
+      // Fire error callbacks
+      _fireCallbacks(storyId, null, e is Exception ? e : Exception(e.toString()));
+      
+      completer.completeError(e);
+    } finally {
+      _activeRequests.remove(storyId);
+      
+      // Trigger recovery check for this story after request cleanup
+      Future.delayed(const Duration(seconds: 1), () async {
+        final diagnostics = await IFEStateManager.getPendingStoryDiagnostics();
+        if (diagnostics.isNotEmpty) {
+          debugPrint('Pending stories after request cleanup: ${diagnostics.join(', ')}');
+        }
+      });
+    }
+  }
+
+  /// Save the play response to local storage (always happens)
+  static Future<void> _savePlayResponse(
+    String storyId,
+    String input,
+    TurnData previousTurn,
+    PlayResponse response,
+  ) async {
+    try {
+      // Update token balance if provided in POST response
+      if (response.tokenBalance != null) {
+        await IFEStateManager.saveTokens(response.tokenBalance!);
+        debugPrint('Updated token balance from server: ${response.tokenBalance}');
+      }
+
+      // Create new turn with complete response data
+      final updatedTurn = TurnData(
+        narrativeMarkdown: response.narrative,
+        userInput: input,
+        availableOptions: response.options,
+        encryptedGameState: response.storedState,
+        timestamp: DateTime.now(),
+        turnNumber: previousTurn.turnNumber + 1,
+      );
+
+      // Load existing story state and update or add the new turn
+      final existingPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+      if (existingPlaythrough != null) {
+        final updatedHistory = List<TurnData>.from(existingPlaythrough.turnHistory);
+        
+        // Check if the last turn is a placeholder (empty narrative) that we should replace
+        if (updatedHistory.isNotEmpty && 
+            updatedHistory.last.narrativeMarkdown.isEmpty &&
+            updatedHistory.last.userInput == input) {
+          // Replace the placeholder turn with the complete turn
+          updatedHistory[updatedHistory.length - 1] = updatedTurn;
+          debugPrint('DEBUG: Replaced placeholder turn with complete response');
+        } else {
+          // Add as new turn
+          updatedHistory.add(updatedTurn);
+          debugPrint('DEBUG: Added new turn to history');
+        }
+        
+        final updatedPlaythrough = StoryPlaythrough(
+          storyId: storyId,
+          turnHistory: updatedHistory,
+          currentTurnIndex: updatedHistory.length - 1,
+          lastTurnDate: DateTime.now(),
+          numberOfTurns: updatedHistory.length,
+        );
+
+        // Save complete playthrough to local storage
+        debugPrint('DEBUG: About to save complete playthrough - Story ID: "$storyId"');
+        debugPrint('DEBUG: Playthrough has ${updatedPlaythrough.turnHistory.length} turns');
+        debugPrint('DEBUG: New turn narrative length: ${response.narrative.length}');
+        debugPrint('DEBUG: New turn options count: ${response.options.length}');
+        
+        await IFEStateManager.saveCompleteStoryState(storyId, updatedPlaythrough);
+        debugPrint('DEBUG: Complete save operation completed for story: $storyId');
+        
+        // Update metadata cache with new progress and token spend
+        final tokenCost = response.options.isNotEmpty ? 1 : 0;
+        await IFEStateManager.updateStoryProgress(storyId, updatedPlaythrough.turnHistory.length, tokensSpent: tokenCost);
+      } else {
+        debugPrint('Warning: Could not find existing playthrough for story: $storyId');
+      }
+    } catch (e) {
+      debugPrint('Failed to save play response for story $storyId: $e');
+      rethrow;
+    }
+  }
+
+  /// Cancel an active request for a story
+  static Future<void> _cancelRequest(String storyId) async {
+    final existingRequest = _activeRequests[storyId];
+    if (existingRequest != null && !existingRequest.isCompleted) {
+      debugPrint('Cancelling existing request for story: $storyId');
+      existingRequest.completeError(Exception('Request cancelled'));
+      _activeRequests.remove(storyId);
+    }
+  }
+
+  /// Check if a story has an active request
+  static bool hasActiveRequest(String storyId) {
+    final request = _activeRequests[storyId];
+    return request != null && !request.isCompleted;
+  }
+
+  /// Get all stories with active requests (for debugging/monitoring)
+  static List<String> getActiveStories() {
+    return _activeRequests.entries
+        .where((entry) => !entry.value!.isCompleted)
+        .map((entry) => entry.key)
+        .toList();
+  }
+
+  /// Debug method to check story state
+  static void debugStoryState(String storyId) {
+    debugPrint('=== DEBUG STORY STATE: $storyId ===');
+    
+    // Check active requests
+    final hasActive = hasActiveRequest(storyId);
+    debugPrint('Has active request: $hasActive');
+    
+    // Check callbacks
+    final callbackCount = _callbacks[storyId]?.length ?? 0;
+    debugPrint('Registered callbacks: $callbackCount');
+    
+    // Check local storage
+    final savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+    if (savedPlaythrough != null) {
+      debugPrint('Local storage turns: ${savedPlaythrough.turnHistory.length}');
+      debugPrint('Last turn number: ${savedPlaythrough.turnHistory.last.turnNumber}');
+      debugPrint('Last turn has narrative: ${savedPlaythrough.turnHistory.last.narrativeMarkdown.isNotEmpty}');
+      debugPrint('Last turn has options: ${savedPlaythrough.turnHistory.last.availableOptions.isNotEmpty}');
+      debugPrint('Last turn input: "${savedPlaythrough.turnHistory.last.userInput}"');
+      debugPrint('Last turn timestamp: ${savedPlaythrough.turnHistory.last.timestamp}');
+    } else {
+      debugPrint('No local storage found for story');
+    }
+    
+    debugPrint('=== END DEBUG ===');
+  }
+
+  /// List all turns for a story with details
+  static void debugAllTurns(String storyId) {
+    debugPrint('=== ALL TURNS FOR: $storyId ===');
+    final savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+    if (savedPlaythrough != null) {
+      for (int i = 0; i < savedPlaythrough.turnHistory.length; i++) {
+        final turn = savedPlaythrough.turnHistory[i];
+        debugPrint('Turn ${i + 1}: "${turn.userInput}" -> ${turn.narrativeMarkdown.length} chars, ${turn.availableOptions.length} options');
+      }
+    } else {
+      debugPrint('No local storage found');
+    }
+    debugPrint('=== END ALL TURNS ===');
+  }
+
+  /// Cleanup method (can be called when app is shutting down)
+  static void cleanup() {
+    for (final storyId in _activeRequests.keys.toList()) {
+      _cancelRequest(storyId);
+    }
+    _callbacks.clear();
+    debugPrint('GlobalPlayService cleanup completed');
+  }
+}

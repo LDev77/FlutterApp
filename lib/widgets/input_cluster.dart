@@ -7,6 +7,7 @@ class InputCluster extends StatefulWidget {
   final TextEditingController inputController;
   final FocusNode inputFocusNode;
   final VoidCallback onSendInput;
+  final ValueChanged<bool>? onOptionsVisibilityChanged;
 
   const InputCluster({
     super.key,
@@ -14,10 +15,20 @@ class InputCluster extends StatefulWidget {
     required this.inputController,
     required this.inputFocusNode,
     required this.onSendInput,
+    this.onOptionsVisibilityChanged,
   });
 
   @override
   State<InputCluster> createState() => _InputClusterState();
+}
+
+// Add a method to close options from parent
+class InputClusterController {
+  _InputClusterState? _state;
+  
+  void closeOptions() {
+    _state?._closeOptions();
+  }
 }
 
 class _InputClusterState extends State<InputCluster> {
@@ -25,6 +36,16 @@ class _InputClusterState extends State<InputCluster> {
   final GlobalKey _inputClusterKey = GlobalKey();
   double _inputClusterHeight = 120.0; // Default fallback
   bool _hasInputText = false; // Track if input field has content
+  
+  // Method to close options from parent
+  void _closeOptions() {
+    if (_showOptions) {
+      setState(() {
+        _showOptions = false;
+      });
+      widget.onOptionsVisibilityChanged?.call(false);
+    }
+  }
 
   @override
   void initState() {
@@ -133,16 +154,15 @@ class _InputClusterState extends State<InputCluster> {
                       // Left margin for navigation caret space
                       const SizedBox(width: 60), // Tightened spacing (70px + 10px margin -> 60px)
 
-                      // Center the options button at 25% width
+                      // Options button (shortened on left side)
                       Expanded(
-                        child: Center(
-                          child: SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.25, // 25% of screen width
-                            child: GestureDetector(
+                        child: GestureDetector(
                           onTap: () {
                             setState(() {
                               _showOptions = !_showOptions;
                             });
+                            // Notify parent of options visibility change
+                            widget.onOptionsVisibilityChanged?.call(_showOptions);
                             // Update height after state change
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               _updateInputClusterHeight();
@@ -182,8 +202,6 @@ class _InputClusterState extends State<InputCluster> {
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
                             ),
                           ),
                         ),
@@ -328,6 +346,9 @@ class _InputClusterState extends State<InputCluster> {
       _showOptions = false;
       _hasInputText = true;
     });
+    
+    // Notify parent of options visibility change
+    widget.onOptionsVisibilityChanged?.call(false);
 
     // Immediately send the selected option
     widget.onSendInput();

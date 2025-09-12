@@ -22,13 +22,17 @@ class StoryMetadataAdapter extends TypeAdapter<StoryMetadata> {
       lastPlayedAt: fields[2] as DateTime?,
       isCompleted: fields[3] as bool,
       totalTokensSpent: fields[4] as int,
+      status: fields[5] as String?,
+      userInput: fields[6] as String?,
+      message: fields[7] as String?,
+      lastInputTime: fields[8] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, StoryMetadata obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.storyId)
       ..writeByte(1)
@@ -38,7 +42,15 @@ class StoryMetadataAdapter extends TypeAdapter<StoryMetadata> {
       ..writeByte(3)
       ..write(obj.isCompleted)
       ..writeByte(4)
-      ..write(obj.totalTokensSpent);
+      ..write(obj.totalTokensSpent)
+      ..writeByte(5)
+      ..write(obj.status)
+      ..writeByte(6)
+      ..write(obj.userInput)
+      ..writeByte(7)
+      ..write(obj.message)
+      ..writeByte(8)
+      ..write(obj.lastInputTime);
   }
 
   @override

@@ -5,10 +5,13 @@ import '../models/api_models.dart';
 import '../widgets/cover_page.dart';
 import '../widgets/turn_page_content.dart';
 import '../widgets/input_cluster.dart';
+import '../widgets/story_status_page.dart';
 import '../services/state_manager.dart';
 import '../services/sample_data.dart';
 import '../services/secure_api_service.dart';
-import '../services/secure_auth_manager.dart';
+import '../services/global_play_service.dart';
+import 'infiniteerium_purchase_screen.dart';
+import 'dart:async';
 
 class StoryReaderScreen extends StatefulWidget {
   final Story story;
@@ -28,11 +31,25 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   StoryPlaythrough? _playthrough;
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
+  bool _optionsVisible = false;
 
   @override
   void initState() {
     super.initState();
-    _loadStoryPlaythrough();
+    
+    // Check for stale pending states before loading story
+    _checkTimeoutAndLoad();
+    
+    // Register for global play service callbacks
+    GlobalPlayService.registerCallback(widget.story.id, _onPlayComplete);
+  }
+
+  Future<void> _checkTimeoutAndLoad() async {
+    // Check for timeout on this specific story
+    await IFEStateManager.checkStoryTimeout(widget.story.id);
+    
+    // Then load the story playthrough
+    await _loadStoryPlaythrough();
   }
 
   Future<void> _loadStoryPlaythrough() async {
@@ -75,11 +92,37 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     } else {
       // No local data - call GET /play to populate
       print('No local storage for ${widget.story.id} - calling GET /play');
+      
+      // SAFETY CHECK: Double-check storage before overwriting
+      final doubleCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+      if (doubleCheckPlaythrough != null) {
+        print('SAFETY: Found existing data on double-check! Using existing ${doubleCheckPlaythrough.turnHistory.length} turns');
+        _playthrough = doubleCheckPlaythrough;
+        setState(() {
+          _currentPage = doubleCheckPlaythrough.turnHistory.length;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _pageController.jumpToPage(doubleCheckPlaythrough.turnHistory.length);
+        });
+        return;
+      }
+      
       try {
         final response = await SecureApiService.getStoryIntroduction(widget.story.id);
         
         // Convert API response to StoryPlaythrough format 
         _playthrough = _convertSimpleStateToPlaythrough(SimpleStoryState.fromPlayResponse(response));
+        
+        // FINAL SAFETY CHECK: Never overwrite existing multi-turn data
+        final finalCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+        if (finalCheckPlaythrough != null) {
+          print('CRITICAL SAFETY: Existing data found right before save! Aborting introduction save to prevent data loss');
+          _playthrough = finalCheckPlaythrough;
+          setState(() {
+            _currentPage = finalCheckPlaythrough.turnHistory.length;
+          });
+          return;
+        }
         
         // Save complete playthrough to local storage
         await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
@@ -172,15 +215,27 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Stack(
-        children: [
+      body: GestureDetector(
+        onTap: () {
+          // Close options if they're visible when tapping on background
+          // This will only trigger if no other interactive element handles the tap
+          if (_optionsVisible) {
+            setState(() {
+              _optionsVisible = false;
+            });
+          }
+        },
+        behavior: HitTestBehavior.translucent,
+        child: Stack(
+          children: [
           PageView.builder(
             controller: _pageController,
             physics: const ClampingScrollPhysics(),
             onPageChanged: (page) => setState(() => _currentPage = page),
-            itemCount: _playthrough!.turnHistory.length + 1, // +1 for cover page
+            itemCount: _getTotalPageCount(),
             itemBuilder: (context, index) {
               if (index == 0) {
+                // Cover page
                 return CoverPage(
                   story: widget.story,
                   currentTurn: _playthrough!.currentTurnIndex + 1,
@@ -194,9 +249,28 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   },
                   onClose: () => Navigator.pop(context),
                 );
-              } else {
+              } else if (index <= _playthrough!.turnHistory.length) {
+                // Turn pages
                 final turnIndex = index - 1;
                 return _buildTurnPage(_playthrough!.turnHistory[turnIndex]);
+              } else {
+                // Status page (last page when hasStatusPage is true)
+                final metadata = IFEStateManager.getStoryMetadata(widget.story.id);
+                if (metadata != null && metadata.status != 'ready') {
+                  return StoryStatusPage(
+                    metadata: metadata,
+                    onGoBack: () async {
+                      await IFEStateManager.clearStoryStatus(widget.story.id);
+                      _reloadStoryState();
+                    },
+                    onRetry: metadata.userInput != null 
+                        ? () async => await _handleApiStoryInput(metadata.userInput!)
+                        : null,
+                  );
+                } else {
+                  // Fallback - should not happen
+                  return const SizedBox.shrink();
+                }
               }
             },
           ),
@@ -237,8 +311,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
               ),
             ),
 
-          // Right arrow (next to left arrow, but hide on last turn with input cluster)
-          if (_currentPage < _playthrough!.turnHistory.length && !_isLastInteractiveTurn())
+          // Right arrow (next to left arrow, but hide on last interactive turn or status page)
+          if (_currentPage < _getTotalPageCount() - 1 && !_isLastInteractiveTurn())
             Positioned(
               left: 80, // Right next to left arrow (50px width + 10px gap + 20px margin)
               bottom: 20, // Same level as options/send buttons
@@ -272,21 +346,56 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
               ),
             ),
         ],
+        ),
       ),
     );
+  }
+
+  /// Check if there's a status page that should be shown
+  bool _hasStatusPage() {
+    final metadata = IFEStateManager.getStoryMetadata(widget.story.id);
+    final status = metadata?.status ?? 'ready';
+    return status != 'ready';
+  }
+
+  /// Get the total page count including cover, turns, and optional status page
+  int _getTotalPageCount() {
+    if (_playthrough == null) return 1;
+    return _playthrough!.turnHistory.length + 1 + (_hasStatusPage() ? 1 : 0);
   }
 
   /// Check if current page is the last interactive turn (has input cluster)
   bool _isLastInteractiveTurn() {
     if (_playthrough == null) return false;
-    // Last turn page is the one with input cluster
-    final lastTurnIndex = _playthrough!.turnHistory.length;
-    return _currentPage == lastTurnIndex;
+    
+    // If there's a status page, the last turn is not interactive
+    if (_hasStatusPage()) return false;
+    
+    // Current turn page should have input cluster if:
+    // 1. It's the last turn in history AND
+    // 2. The turn has available options (indicating it's ready for input)
+    final isOnLastTurn = _currentPage == _playthrough!.turnHistory.length;
+    if (!isOnLastTurn) return false;
+    
+    // Check if the last turn has options available (meaning it's ready for input)
+    final lastTurn = _playthrough!.turnHistory.last;
+    return lastTurn.availableOptions.isNotEmpty;
   }
 
+  /// Check if we should show input cluster on a turn page
+  bool _shouldShowInputCluster() {
+    // Never show input cluster if there's a status page active
+    if (_hasStatusPage()) return false;
+    
+    // Only show on the last interactive turn
+    return _isLastInteractiveTurn();
+  }
+
+
   Widget _buildTurnPage(TurnData turn) {
-    // Check if this is the last turn (interactive)
-    final isLastTurn = turn.turnNumber == _playthrough!.numberOfTurns;
+    // Check if this turn should show input cluster
+    final shouldShowInput = _shouldShowInputCluster() && 
+                           turn.turnNumber == _playthrough!.numberOfTurns;
 
     return SafeArea(
       child: Column(
@@ -323,28 +432,31 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   ),
                 ),
 
-                // Token display
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.purple, width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('🪙', style: TextStyle(fontSize: 16)),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${IFEStateManager.getTokens()}',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                // Token display - now tappable
+                GestureDetector(
+                  onTap: () => _openPaymentScreen(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.purple, width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('🪙', style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${IFEStateManager.getTokens()}',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -353,7 +465,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
           // Main content area
           Expanded(
-            child: isLastTurn ? _buildInteractiveContent(turn) : _buildStaticContent(turn),
+            child: shouldShowInput ? _buildInteractiveContent(turn) : _buildStaticContent(turn),
           ),
         ],
       ),
@@ -362,28 +474,86 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
   // For non-interactive pages (history)
   Widget _buildStaticContent(TurnData turn) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 90), // Extra bottom padding to avoid navigation carets
-      physics: const ClampingScrollPhysics(),
-      child: TurnPageContent(turn: turn),
-    );
-  }
+    final fadeHeight = 20.0;
+    final navigationButtonSpace = 90.0; // Space for navigation buttons at bottom
 
-  // For the last page with input controls - single scrollable container
-  Widget _buildInteractiveContent(TurnData turn) {
     return Stack(
       children: [
-        // Scrollable content area (above input cluster)
+        // Scrollable content area (above navigation buttons)
         Positioned.fill(
-          bottom: 200, // Leave space for input cluster
+          bottom: navigationButtonSpace - fadeHeight, // Stop above nav buttons, minus fade zone
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0), // Remove bottom padding
             physics: const ClampingScrollPhysics(),
             child: TurnPageContent(turn: turn),
           ),
         ),
         
-        // Input cluster pinned to bottom
+        // Fade to solid zone - gradient overlay at bottom of text area
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: navigationButtonSpace - fadeHeight,
+          height: fadeHeight,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                  Theme.of(context).scaffoldBackgroundColor.withOpacity(1.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  // For the last page with input controls - single scrollable container
+  Widget _buildInteractiveContent(TurnData turn) {
+    final hasContent = turn.narrativeMarkdown.isNotEmpty;
+    final fadeHeight = 20.0;
+    final bottomSpacing = 200; // Fixed spacing since no loading/error states here
+
+    return Stack(
+      children: [
+        // Scrollable content area (above input cluster)
+        if (hasContent)
+          Positioned.fill(
+            bottom: bottomSpacing - fadeHeight,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+              physics: const ClampingScrollPhysics(),
+              child: TurnPageContent(turn: turn),
+            ),
+          ),
+        
+        // Fade to solid zone - gradient overlay at bottom of text area
+        if (hasContent)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: bottomSpacing - fadeHeight,
+            height: fadeHeight,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                    Theme.of(context).scaffoldBackgroundColor.withOpacity(1.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        
+        // Input cluster pinned to bottom (always show on interactive turns)
         Positioned(
           left: 0,
           right: 0,
@@ -393,6 +563,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             inputController: _inputController,
             inputFocusNode: _inputFocusNode,
             onSendInput: _handleSendInput,
+            onOptionsVisibilityChanged: (visible) {
+              setState(() {
+                _optionsVisible = visible;
+              });
+            },
           ),
         ),
       ],
@@ -433,111 +608,110 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     _inputController.clear();
     _inputFocusNode.unfocus();
 
-    // 5) Move user to new UX page with blue input box (no input cluster)
-    final currentTurn = _playthrough!.turnHistory.last;
-    final newTurnWithInput = TurnData(
-      narrativeMarkdown: '', // Will be populated when response comes back
-      userInput: input, // User's input goes in blue box
-      availableOptions: [], // Will be populated from response
-      encryptedGameState: currentTurn.encryptedGameState,
+    // Set status to pending with timestamp and user input
+    await IFEStateManager.updateStoryStatus(
+      widget.story.id, 
+      'pending', 
+      input, 
+      null,
       timestamp: DateTime.now(),
-      turnNumber: currentTurn.turnNumber + 1,
     );
 
-    // Add the new turn and navigate to it
-    final updatedHistory = List<TurnData>.from(_playthrough!.turnHistory)..add(newTurnWithInput);
-    _playthrough = StoryPlaythrough(
-      storyId: _playthrough!.storyId,
-      turnHistory: updatedHistory,
-      currentTurnIndex: updatedHistory.length - 1,
-      lastTurnDate: DateTime.now(),
-      numberOfTurns: updatedHistory.length,
-    );
-
+    // Navigate to status page that will show pending state
+    final statusPageIndex = _getTotalPageCount() - 1;
     setState(() {
-      _currentPage = _playthrough!.turnHistory.length; // Move to new page
+      _currentPage = statusPageIndex;
     });
+    _pageController.jumpToPage(statusPageIndex);
 
-    // Jump to the new page instantly (with blue input box, no input cluster)
-    _pageController.jumpToPage(_playthrough!.turnHistory.length);
+    // Get the current turn for the API call
+    final currentTurn = _playthrough!.turnHistory.last;
 
-    // Now call API in background
-    try {
-      await _processApiResponse(input, currentTurn);
-    } catch (e) {
-      print('API call failed: $e');
-      _showErrorDialog('Connection Error', 
-        'Unable to process your input. Please check your internet connection and try again.');
+    // Use global service to handle the API call
+    // The response will come back via _onPlayComplete callback
+    GlobalPlayService.playStoryTurn(
+      storyId: widget.story.id,
+      input: input,
+      previousTurn: currentTurn,
+    );
+  }
+
+
+  String _getErrorMessage(dynamic error) {
+    if (error is ServerBusyException) {
+      return error.message;
+    } else if (error is ServerErrorException) {
+      return error.message;
+    } else if (error is InsufficientTokensException) {
+      return error.message;
+    } else if (error is UnauthorizedException) {
+      return 'Authentication error. Please restart the app.';
+    } else {
+      return 'Connection error. Please check your internet and try again.';
     }
   }
 
-  Future<void> _processApiResponse(String input, TurnData previousTurn) async {
-    try {
-      final userId = await SecureAuthManager.getUserId();
-      if (userId == null) throw Exception('User not authenticated');
 
-      // 4) Create PlayRequest with all required fields
-      final request = PlayRequest(
-        userId: userId,
-        storyId: widget.story.id,
-        input: input, // User's choice
-        storedState: previousTurn.encryptedGameState, // Previous storedState
-        displayedNarrative: previousTurn.narrativeMarkdown, // Previous narrative
-        options: previousTurn.availableOptions, // Previous options
+  /// Callback from GlobalPlayService when a turn completes
+  void _onPlayComplete(PlayResponse? response, Exception? error) async {
+    // Only update UI if widget is still mounted
+    if (!mounted) return;
+    
+    if (error != null) {
+      // Set status to exception with error message
+      await IFEStateManager.updateStoryStatus(
+        widget.story.id,
+        'exception',
+        null, // Keep existing userInput
+        _getErrorMessage(error),
       );
-
-      print('Sending POST /play request...');
-      final response = await SecureApiService.playStoryTurn(request);
-      print('Received API response - narrative length: ${response.narrative.length}');
-
-      // Update token balance if provided in POST response (not available in GET)
-      if (response.tokenBalance != null) {
-        await IFEStateManager.saveTokens(response.tokenBalance!);
-        print('Updated token balance from server: ${response.tokenBalance}');
-      }
-
-      // When AND ONLY when response is complete, save new turn locally
-      final updatedTurn = TurnData(
-        narrativeMarkdown: response.narrative,
-        userInput: input,
-        availableOptions: response.options,
-        encryptedGameState: response.storedState,
-        timestamp: DateTime.now(),
-        turnNumber: previousTurn.turnNumber + 1,
+    } else if (response != null) {
+      // Success - set status to message temporarily, then ready
+      await IFEStateManager.updateStoryStatus(
+        widget.story.id,
+        'message',
+        null,
+        'Turn completed successfully!',
       );
-
-      // Update the last turn in history with complete response
-      final updatedHistory = List<TurnData>.from(_playthrough!.turnHistory);
-      updatedHistory[updatedHistory.length - 1] = updatedTurn;
-
-      _playthrough = StoryPlaythrough(
-        storyId: _playthrough!.storyId,
-        turnHistory: updatedHistory,
-        currentTurnIndex: updatedHistory.length - 1,
-        lastTurnDate: DateTime.now(),
-        numberOfTurns: updatedHistory.length,
-      );
-
-      // Save complete playthrough to local storage (CRITICAL: saves in background regardless of user location)
-      print('DEBUG: About to save complete playthrough - Story ID: "${widget.story.id}"');
-      print('DEBUG: Playthrough has ${_playthrough!.turnHistory.length} turns');
-      print('DEBUG: New turn narrative length: ${response.narrative.length}');
-      print('DEBUG: New turn options count: ${response.options.length}');
-      await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
-      print('DEBUG: Complete save operation completed - user can be anywhere in story');
       
-      // Update metadata cache with new progress and token spend
-      final tokenCost = response.options.isNotEmpty ? 1 : 0;
-      await IFEStateManager.updateStoryProgress(widget.story.id, _playthrough!.turnHistory.length, tokensSpent: tokenCost);
-
-      // Activate input cluster for new input (rebuild UI)
-      setState(() {});
-
-    } catch (e) {
-      print('Failed to process API response: $e');
-      // Handle error but don't block user navigation
+      // Reload the story state from local storage
+      await _reloadStoryState();
+      
+      // Brief delay to show success message, then set to ready
+      await Future.delayed(const Duration(seconds: 1));
+      if (mounted) {
+        await IFEStateManager.clearStoryStatus(widget.story.id);
+        // Reload again to show final state without status page
+        await _reloadStoryState();
+      }
+    }
+    
+    // Trigger UI rebuild to reflect status changes
+    if (mounted) {
+      setState(() {
+        // Just trigger rebuild to reflect status changes
+      });
     }
   }
+
+  /// Reload story state from local storage after a successful turn
+  Future<void> _reloadStoryState() async {
+    final savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+    if (savedPlaythrough != null) {
+      _playthrough = savedPlaythrough;
+      
+      // Navigate to the last turn (where input cluster is)
+      final lastTurnIndex = _playthrough!.turnHistory.length;
+      setState(() {
+        _currentPage = lastTurnIndex;
+      });
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pageController.jumpToPage(lastTurnIndex);
+      });
+    }
+  }
+
 
   void _showErrorDialog(String title, String message) {
     showDialog(
@@ -560,8 +734,20 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     );
   }
 
+  void _openPaymentScreen(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const InfiniteeriumPurchaseScreen(),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    // Unregister from global play service callbacks
+    GlobalPlayService.unregisterCallback(widget.story.id, _onPlayComplete);
+    
     _pageController.dispose();
     _inputController.dispose();
     _inputFocusNode.dispose();

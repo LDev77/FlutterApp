@@ -4,6 +4,7 @@ import '../models/api_models.dart';
 import '../models/story.dart';
 import '../models/turn_data.dart';
 import '../models/story_metadata.dart';
+import 'global_play_service.dart';
 
 class IFEStateManager {
   static const String _stateBoxName = 'ife_states';
@@ -192,6 +193,126 @@ class IFEStateManager {
     
     await box.put(storyId, metadata);
   }
+
+  // Status management methods
+  static Future<void> updateStoryStatus(String storyId, String? status, String? userInput, String? message, {DateTime? timestamp}) async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final existing = box.get(storyId);
+    
+    final metadata = existing?.copyWith(
+      status: status,
+      userInput: userInput,
+      message: message,
+      lastInputTime: timestamp,
+    ) ?? StoryMetadata(
+      storyId: storyId,
+      currentTurn: 1,
+      status: status,
+      userInput: userInput,
+      message: message,
+      lastInputTime: timestamp,
+    );
+    
+    await box.put(storyId, metadata);
+  }
+
+  static Future<void> clearStoryStatus(String storyId) async {
+    await updateStoryStatus(storyId, 'ready', null, null);
+  }
+
+  // Comprehensive recovery mechanism - timeout + hard checks
+  static Future<void> sweepStaleStates() async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final cutoffTime = DateTime.now().subtract(const Duration(minutes: 2, seconds: 30));
+    
+    for (final metadata in box.values) {
+      final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
+      if (needsRecovery != null) {
+        print('Recovering stale state for story: ${metadata.storyId} (reason: ${needsRecovery.reason})');
+        await updateStoryStatus(metadata.storyId, 'ready', null, null);
+      }
+    }
+  }
+
+  // Hard checks for story state recovery
+  static Future<RecoveryReason?> _shouldRecoverStoryState(StoryMetadata metadata, DateTime cutoffTime) async {
+    if (metadata.status != 'pending') return null;
+    
+    // Check 1: Timeout (original check)
+    if (metadata.lastInputTime != null && metadata.lastInputTime!.isBefore(cutoffTime)) {
+      return RecoveryReason('timeout', 'Pending state exceeded 2:30 timeout');
+    }
+    
+    // Check 2: No timestamp but pending (should never happen)
+    if (metadata.lastInputTime == null) {
+      return RecoveryReason('no_timestamp', 'Pending state missing timestamp');
+    }
+    
+    // Check 3: Check if GlobalPlayService has any active requests for this story
+    if (!GlobalPlayService.hasActiveRequest(metadata.storyId)) {
+      // If no active request but still pending, something went wrong
+      final timeSincePending = DateTime.now().difference(metadata.lastInputTime!);
+      if (timeSincePending.inSeconds > 30) { // Give 30 seconds grace period
+        return RecoveryReason('orphaned_pending', 'Pending state with no active request');
+      }
+    }
+    
+    // Check 4: Future timestamp (clock sync issues)
+    if (metadata.lastInputTime!.isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
+      return RecoveryReason('future_timestamp', 'Pending state has future timestamp');
+    }
+    
+    return null;
+  }
+
+  static Future<void> checkStoryTimeout(String storyId) async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final metadata = box.get(storyId);
+    
+    if (metadata != null) {
+      final cutoffTime = DateTime.now().subtract(const Duration(minutes: 2, seconds: 30));
+      final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
+      if (needsRecovery != null) {
+        print('Recovering story state for $storyId: ${needsRecovery.reason}');
+        await updateStoryStatus(storyId, 'ready', null, null);
+      }
+    }
+  }
+
+  /// Force recovery check for all stories (emergency cleanup)
+  static Future<void> forceRecoveryCheck() async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final cutoffTime = DateTime.now().subtract(const Duration(seconds: 1)); // Force check all
+    
+    for (final metadata in box.values) {
+      if (metadata.status == 'pending') {
+        final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
+        if (needsRecovery != null) {
+          print('Force recovery for story: ${metadata.storyId} (${needsRecovery.reason})');
+          await updateStoryStatus(metadata.storyId, 'ready', null, null);
+        }
+      }
+    }
+  }
+
+  /// Get diagnostic info for pending stories
+  static Future<List<String>> getPendingStoryDiagnostics() async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    final diagnostics = <String>[];
+    
+    for (final metadata in box.values) {
+      if (metadata.status == 'pending') {
+        final hasActiveRequest = GlobalPlayService.hasActiveRequest(metadata.storyId);
+        final timePending = metadata.lastInputTime != null 
+            ? DateTime.now().difference(metadata.lastInputTime!).inSeconds
+            : -1;
+        
+        diagnostics.add('${metadata.storyId}: ${timePending}s pending, hasActiveRequest: $hasActiveRequest');
+      }
+    }
+    
+    return diagnostics;
+  }
   
   static Future<void> markStoryCompleted(String storyId) async {
     final box = Hive.box<StoryMetadata>(_metadataBoxName);
@@ -213,4 +334,15 @@ class IFEStateManager {
     await Hive.box(_progressBoxName).clear();
     await Hive.box<StoryMetadata>(_metadataBoxName).clear();
   }
+}
+
+/// Recovery reason for debugging stale state cleanup
+class RecoveryReason {
+  final String reason;
+  final String description;
+  
+  RecoveryReason(this.reason, this.description);
+  
+  @override
+  String toString() => '$reason: $description';
 }
