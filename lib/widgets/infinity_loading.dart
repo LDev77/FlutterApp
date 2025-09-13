@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 
-/// A beautiful infinity loading widget using pure Flutter animation
+/// A beautiful infinity loading widget using Lottie animation
 /// Perfect for API calls and async operations
-class InfinityLoading extends StatefulWidget {
+class InfinityLoading extends StatelessWidget {
   final double size;
   final String? message;
   final Color? color;
@@ -35,96 +36,39 @@ class InfinityLoading extends StatefulWidget {
   });
 
   @override
-  State<InfinityLoading> createState() => _InfinityLoadingState();
-}
-
-class _InfinityLoadingState extends State<InfinityLoading>
-    with TickerProviderStateMixin {
-  late AnimationController _rotationController;
-  late AnimationController _scaleController;
-  late Animation<double> _rotationAnimation;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Rotation animation for infinity symbol
-    _rotationController = AnimationController(
-      duration: const Duration(seconds: 3),
-      vsync: this,
-    );
-
-    // Scale pulse animation
-    _scaleController = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    );
-
-    _rotationAnimation = Tween<double>(
-      begin: 0,
-      end: 1,
-    ).animate(CurvedAnimation(
-      parent: _rotationController,
-      curve: Curves.linear,
-    ));
-
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _scaleController,
-      curve: Curves.easeInOut,
-    ));
-
-    // Start animations
-    _rotationController.repeat();
-    _scaleController.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _rotationController.dispose();
-    _scaleController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Custom infinity symbol animation
+          // Use local infinity Lottie animation
           SizedBox(
-            width: widget.size,
-            height: widget.size,
-            child: AnimatedBuilder(
-              animation: Listenable.merge([_rotationAnimation, _scaleAnimation]),
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: Transform.rotate(
-                    angle: _rotationAnimation.value * 2 * 3.14159,
-                    child: CustomPaint(
-                      size: Size(widget.size, widget.size),
-                      painter: InfinityPainter(
-                        color: widget.color ?? Theme.of(context).primaryColor,
-                        strokeWidth: widget.size * 0.08,
-                      ),
-                    ),
-                  ),
-                );
+            width: size,
+            height: size,
+            child: Lottie.asset(
+              'assets/animations/Infinity@1x-1.0s-200px-200px.json',
+              width: size,
+              height: size,
+              fit: BoxFit.contain,
+              repeat: true,
+              animate: true,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback to themed circular progress indicator if asset fails to load
+                print('🚨 Lottie Error: $error');
+                return _buildFallbackLoader(context);
+              },
+              onLoaded: (composition) {
+                print('✅ Lottie loaded successfully: ${composition.duration}');
               },
             ),
           ),
 
-          if (widget.showMessage && widget.message != null) ...[
+          if (showMessage && message != null) ...[
             const SizedBox(height: 16),
             Text(
-              widget.message!,
+              message!,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: widget.color ?? Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                color: color ?? Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
@@ -134,48 +78,15 @@ class _InfinityLoadingState extends State<InfinityLoading>
       ),
     );
   }
-}
 
-/// Custom painter for drawing the infinity symbol
-class InfinityPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-
-  InfinityPainter({
-    required this.color,
-    required this.strokeWidth,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width * 0.3;
-
-    // Draw infinity symbol (figure-8)
-    // Left loop
-    path.addOval(Rect.fromCircle(
-      center: Offset(center.dx - radius * 0.5, center.dy),
-      radius: radius * 0.5,
-    ));
-
-    // Right loop
-    path.addOval(Rect.fromCircle(
-      center: Offset(center.dx + radius * 0.5, center.dy),
-      radius: radius * 0.5,
-    ));
-
-    canvas.drawPath(path, paint);
+  Widget _buildFallbackLoader(BuildContext context) {
+    return CircularProgressIndicator(
+      strokeWidth: 3,
+      valueColor: AlwaysStoppedAnimation<Color>(
+        color ?? Theme.of(context).primaryColor,
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// A full-screen loading overlay with infinity animation

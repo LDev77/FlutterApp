@@ -13,7 +13,8 @@
       "Bash(find:*)",
       "Bash(dart run build_runner build:*)",
       "WebFetch(domain:github.com)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "WebFetch(domain:api.flutter.dev)"
     ],
     "deny": [],
     "ask": []
