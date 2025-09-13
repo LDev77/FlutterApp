@@ -4,6 +4,7 @@ import '../models/api_models.dart';
 import '../models/story.dart';
 import '../models/turn_data.dart';
 import '../models/story_metadata.dart';
+import '../models/playthrough_metadata.dart';
 import 'global_play_service.dart';
 
 class IFEStateManager {
@@ -11,17 +12,26 @@ class IFEStateManager {
   static const String _tokenBoxName = 'user_tokens';
   static const String _progressBoxName = 'story_progress';
   static const String _metadataBoxName = 'story_metadata';
+  static const String _playthroughBoxName = 'playthrough_metadata';
+  static const String _turnsBoxName = 'story_turns';
   
   static Future<void> initialize() async {
     await Hive.initFlutter();
     
-    // Register the StoryMetadata adapter
-    Hive.registerAdapter(StoryMetadataAdapter());
+    // Register the adapters (check if not already registered)
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(StoryMetadataAdapter());
+    }
+    if (!Hive.isAdapterRegistered(3)) {
+      Hive.registerAdapter(PlaythroughMetadataAdapter());
+    }
     
     await Hive.openBox(_stateBoxName);
     await Hive.openBox(_tokenBoxName);
     await Hive.openBox(_progressBoxName);
     await Hive.openBox<StoryMetadata>(_metadataBoxName);
+    await Hive.openBox<PlaythroughMetadata>(_playthroughBoxName);
+    await Hive.openBox(_turnsBoxName);
   }
   
   // Store simplified story state (narrative, options, storedState)
@@ -125,6 +135,259 @@ class IFEStateManager {
       print('Error parsing complete story state: $e');
       return null;
     }
+  }
+
+  // CHUNKED TURN STORAGE - Atomic per-turn storage for bulletproof data integrity
+  
+  /// Save a single turn atomically - prevents cascade failures
+  static Future<void> saveTurn(String storyId, String playthroughId, int turnNumber, TurnData turn) async {
+    final box = Hive.box(_turnsBoxName);
+    final key = 'turn_${storyId}_${playthroughId}_${turnNumber}';
+    
+    try {
+      final jsonData = jsonEncode(turn.toJson());
+      await box.put(key, jsonData);
+      print('DEBUG: Saved turn atomically - Key: "$key", JSON length: ${jsonData.length}');
+    } catch (e) {
+      // Storage failures should be fatal - successful API responses cannot be lost
+      throw Exception('FATAL: Failed to save turn $turnNumber for story $storyId: $e');
+    }
+  }
+  
+  /// Load all turns for a story playthrough by scanning keys
+  static List<TurnData> loadTurns(String storyId, String playthroughId) {
+    final box = Hive.box(_turnsBoxName);
+    final prefix = 'turn_${storyId}_${playthroughId}_';
+    
+    // Find all turn keys for this playthrough
+    final turnKeys = box.keys
+        .where((key) => key.toString().startsWith(prefix))
+        .map((key) => key.toString())
+        .toList()
+      ..sort(); // Sort to ensure correct order
+    
+    final turns = <TurnData>[];
+    print('DEBUG: Found ${turnKeys.length} turn keys for $storyId/$playthroughId');
+    
+    for (final key in turnKeys) {
+      try {
+        final turnJson = box.get(key) as String?;
+        if (turnJson != null) {
+          final turnMap = jsonDecode(turnJson) as Map<String, dynamic>;
+          final turn = TurnData.fromJson(turnMap);
+          turns.add(turn);
+          print('DEBUG: Loaded turn ${turn.turnNumber} successfully');
+        } else {
+          print('WARNING: Turn key "$key" has null data');
+        }
+      } catch (e) {
+        print('ERROR: Failed to load turn from key "$key": $e');
+        // Continue loading other turns - don't let one bad turn break everything
+      }
+    }
+    
+    // Sort by turn number to ensure correct order
+    turns.sort((a, b) => a.turnNumber.compareTo(b.turnNumber));
+    
+    print('DEBUG: Successfully loaded ${turns.length} turns for $storyId/$playthroughId');
+    return turns;
+  }
+  
+  /// Get turn count efficiently without loading full data
+  static int getTurnCount(String storyId, String playthroughId) {
+    final box = Hive.box(_turnsBoxName);
+    final prefix = 'turn_${storyId}_${playthroughId}_';
+    
+    return box.keys.where((key) => key.toString().startsWith(prefix)).length;
+  }
+  
+  /// Rebuild complete playthrough from chunked turns
+  static StoryPlaythrough? getCompleteStoryStateFromChunks(String storyId, {String? playthroughId}) {
+    // Use provided playthroughId or try to find the most recent active playthrough
+    final actualPlaythroughId = playthroughId ?? _getDefaultPlaythroughId(storyId);
+    if (actualPlaythroughId == null) {
+      print('DEBUG: No playthrough found for story $storyId');
+      return null;
+    }
+    
+    final turns = loadTurns(storyId, actualPlaythroughId);
+    if (turns.isEmpty) {
+      print('DEBUG: No chunked turns found for story $storyId, playthrough $actualPlaythroughId');
+      return null;
+    }
+    
+    // Build playthrough from individual turns
+    return StoryPlaythrough(
+      storyId: storyId,
+      turnHistory: turns,
+      currentTurnIndex: turns.length - 1,
+      lastTurnDate: turns.last.timestamp,
+      numberOfTurns: turns.length,
+    );
+  }
+  
+  /// Get the default (most recent) playthrough ID for a story
+  static String? _getDefaultPlaythroughId(String storyId) {
+    final playthroughs = getStoryPlaythroughs(storyId);
+    if (playthroughs.isEmpty) {
+      // For backward compatibility, try 'main' first
+      final mainExists = getTurnCount(storyId, 'main') > 0;
+      if (mainExists) return 'main';
+      return null;
+    }
+    
+    // Return the most recent playthrough
+    return playthroughs.first.playthroughId;
+  }
+
+  // PLAYTHROUGH METADATA MANAGEMENT - Multiple playthroughs per story with save names
+  
+  /// Create a new playthrough with a unique ID and save name
+  static Future<PlaythroughMetadata> createPlaythrough({
+    required String storyId,
+    required String saveName,
+    String? customPlaythroughId,
+  }) async {
+    final playthroughId = customPlaythroughId ?? _generatePlaythroughId();
+    
+    final metadata = PlaythroughMetadata.create(
+      storyId: storyId,
+      playthroughId: playthroughId,
+      saveName: saveName,
+    );
+    
+    await savePlaythroughMetadata(metadata);
+    print('DEBUG: Created new playthrough - Story: $storyId, ID: $playthroughId, Name: "$saveName"');
+    
+    return metadata;
+  }
+  
+  /// Save playthrough metadata
+  static Future<void> savePlaythroughMetadata(PlaythroughMetadata metadata) async {
+    final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);
+    await box.put(metadata.compositeKey, metadata);
+  }
+  
+  /// Get playthrough metadata by storyId + playthroughId
+  static PlaythroughMetadata? getPlaythroughMetadata(String storyId, String playthroughId) {
+    final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);
+    final key = '${storyId}_$playthroughId';
+    return box.get(key);
+  }
+  
+  /// Get all playthroughs for a specific story
+  static List<PlaythroughMetadata> getStoryPlaythroughs(String storyId) {
+    final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);
+    return box.values.where((p) => p.storyId == storyId).toList()
+      ..sort((a, b) => b.lastPlayedAt.compareTo(a.lastPlayedAt)); // Most recent first
+  }
+  
+  /// Get all playthroughs across all stories
+  static List<PlaythroughMetadata> getAllPlaythroughs() {
+    final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);
+    return box.values.toList()
+      ..sort((a, b) => b.lastPlayedAt.compareTo(a.lastPlayedAt));
+  }
+  
+  /// Update playthrough progress
+  static Future<void> updatePlaythroughProgress(
+    String storyId, 
+    String playthroughId, 
+    int currentTurn, 
+    int totalTurns, {
+    int? tokensSpent,
+    String? status,
+  }) async {
+    final existing = getPlaythroughMetadata(storyId, playthroughId);
+    if (existing != null) {
+      final updated = existing.copyWith(
+        currentTurn: currentTurn,
+        totalTurns: totalTurns,
+        lastPlayedAt: DateTime.now(),
+        tokensSpent: tokensSpent != null ? existing.tokensSpent + tokensSpent : existing.tokensSpent,
+        status: status ?? existing.status,
+      );
+      await savePlaythroughMetadata(updated);
+    }
+  }
+  
+  /// Mark playthrough as completed
+  static Future<void> completePlaythrough(
+    String storyId, 
+    String playthroughId, {
+    String? endingDescription,
+  }) async {
+    final existing = getPlaythroughMetadata(storyId, playthroughId);
+    if (existing != null) {
+      final completed = existing.copyWith(
+        status: 'completed',
+        isCompleted: true,
+        endingDescription: endingDescription,
+        lastPlayedAt: DateTime.now(),
+      );
+      await savePlaythroughMetadata(completed);
+    }
+  }
+  
+  /// Delete a playthrough and all its turn data
+  static Future<void> deletePlaythrough(String storyId, String playthroughId) async {
+    // Delete metadata
+    final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);
+    final key = '${storyId}_$playthroughId';
+    await box.delete(key);
+    
+    // Delete all turn data
+    final turnsBox = Hive.box(_turnsBoxName);
+    final prefix = 'turn_${storyId}_${playthroughId}_';
+    final keysToDelete = turnsBox.keys.where((key) => key.toString().startsWith(prefix)).toList();
+    
+    for (final turnKey in keysToDelete) {
+      await turnsBox.delete(turnKey);
+    }
+    
+    print('DEBUG: Deleted playthrough $playthroughId for story $storyId (${keysToDelete.length} turns)');
+  }
+  
+  /// Generate a unique playthrough ID
+  static String _generatePlaythroughId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = (timestamp % 10000).toString().padLeft(4, '0');
+    return 'pt_$random';
+  }
+  
+  /// Ensure a default playthrough exists for a story (auto-create if needed)
+  static Future<PlaythroughMetadata> ensureDefaultPlaythrough(String storyId) async {
+    final existing = getStoryPlaythroughs(storyId);
+    
+    if (existing.isNotEmpty) {
+      // Return the most recent playthrough
+      return existing.first;
+    }
+    
+    // Check if legacy 'main' playthrough exists in chunked storage
+    final legacyTurnCount = getTurnCount(storyId, 'main');
+    if (legacyTurnCount > 0) {
+      // Create metadata for the legacy playthrough
+      final legacyPlaythrough = PlaythroughMetadata.create(
+        storyId: storyId,
+        playthroughId: 'main',
+        saveName: 'Main Story',
+      ).copyWith(
+        totalTurns: legacyTurnCount,
+        currentTurn: legacyTurnCount,
+      );
+      
+      await savePlaythroughMetadata(legacyPlaythrough);
+      print('DEBUG: Created metadata for legacy playthrough: $storyId/main');
+      return legacyPlaythrough;
+    }
+    
+    // Create a brand new default playthrough
+    return await createPlaythrough(
+      storyId: storyId,
+      saveName: 'Main Story',
+      customPlaythroughId: 'main', // Keep using 'main' for first playthrough
+    );
   }
   
   // Token management
@@ -328,11 +591,43 @@ class IFEStateManager {
   }
   
   // Clear all data for testing
+  /// Delete a specific turn from chunked storage
+  static Future<void> deleteTurn(String storyId, String playthroughId, int turnNumber) async {
+    final box = Hive.box(_turnsBoxName);
+    final key = 'turn_${storyId}_${playthroughId}_$turnNumber';
+    await box.delete(key);
+  }
+  
+  /// Delete all turns for a playthrough from chunked storage
+  static Future<void> deleteAllTurns(String storyId, String playthroughId) async {
+    final box = Hive.box(_turnsBoxName);
+    final keys = box.keys.where((key) => key.toString().startsWith('turn_${storyId}_${playthroughId}_')).toList();
+    for (final key in keys) {
+      await box.delete(key);
+    }
+  }
+  
+  /// Delete playthrough metadata
+  static Future<void> deletePlaythroughMetadata(String storyId, String playthroughId) async {
+    final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);
+    final key = '${storyId}_$playthroughId';
+    await box.delete(key);
+  }
+  
+  /// Delete complete story state from legacy storage
+  static Future<void> deleteCompleteStoryState(String storyId) async {
+    final box = Hive.box(_stateBoxName);
+    final key = 'complete_story_${storyId}_state';
+    await box.delete(key);
+  }
+
   static Future<void> clearAllData() async {
     await Hive.box(_stateBoxName).clear();
     await Hive.box(_tokenBoxName).clear();
     await Hive.box(_progressBoxName).clear();
     await Hive.box<StoryMetadata>(_metadataBoxName).clear();
+    await Hive.box<PlaythroughMetadata>(_playthroughBoxName).clear();
+    await Hive.box(_turnsBoxName).clear();
   }
 }
 

@@ -55,6 +55,24 @@ class StoryPlaythrough {
     this.endingDescription,
   });
 
+  StoryPlaythrough copyWith({
+    String? storyId,
+    List<TurnData>? turnHistory,
+    int? currentTurnIndex,
+    DateTime? lastTurnDate,
+    int? numberOfTurns,
+    String? endingDescription,
+  }) {
+    return StoryPlaythrough(
+      storyId: storyId ?? this.storyId,
+      turnHistory: turnHistory ?? this.turnHistory,
+      currentTurnIndex: currentTurnIndex ?? this.currentTurnIndex,
+      lastTurnDate: lastTurnDate ?? this.lastTurnDate,
+      numberOfTurns: numberOfTurns ?? this.numberOfTurns,
+      endingDescription: endingDescription ?? this.endingDescription,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'storyId': storyId,

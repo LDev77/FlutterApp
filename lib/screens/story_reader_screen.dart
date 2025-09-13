@@ -6,6 +6,7 @@ import '../widgets/cover_page.dart';
 import '../widgets/turn_page_content.dart';
 import '../widgets/input_cluster.dart';
 import '../widgets/story_status_page.dart';
+import '../widgets/story_settings_overlay.dart';
 import '../services/state_manager.dart';
 import '../services/sample_data.dart';
 import '../services/secure_api_service.dart';
@@ -69,10 +70,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       return;
     }
 
-    // For all other stories, check local storage first (complete turn history)
-    print('DEBUG: Checking complete local storage for story ID: "${widget.story.id}"');
-    final savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
-    print('DEBUG: Complete storage result: ${savedPlaythrough != null ? "FOUND with ${savedPlaythrough.turnHistory.length} turns" : "NOT FOUND"}');
+    // For all other stories, check local storage first (try chunked storage first, fallback to legacy)
+    print('DEBUG: Checking chunked storage for story ID: "${widget.story.id}"');
+    var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
+    
+    if (savedPlaythrough == null) {
+      print('DEBUG: No chunked storage found, checking legacy storage for story ID: "${widget.story.id}"');
+      savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+    }
+    
+    print('DEBUG: Storage result: ${savedPlaythrough != null ? "FOUND with ${savedPlaythrough!.turnHistory.length} turns" : "NOT FOUND"}');
     
     if (savedPlaythrough != null) {
       // Found complete playthrough data
@@ -93,16 +100,19 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       // No local data - call GET /play to populate
       print('No local storage for ${widget.story.id} - calling GET /play');
       
-      // SAFETY CHECK: Double-check storage before overwriting
-      final doubleCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+      // SAFETY CHECK: Double-check storage before overwriting (check both chunked and legacy)
+      var doubleCheckPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
+      if (doubleCheckPlaythrough == null) {
+        doubleCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+      }
       if (doubleCheckPlaythrough != null) {
         print('SAFETY: Found existing data on double-check! Using existing ${doubleCheckPlaythrough.turnHistory.length} turns');
         _playthrough = doubleCheckPlaythrough;
         setState(() {
-          _currentPage = doubleCheckPlaythrough.turnHistory.length;
+          _currentPage = doubleCheckPlaythrough!.turnHistory.length;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _pageController.jumpToPage(doubleCheckPlaythrough.turnHistory.length);
+          _pageController.jumpToPage(doubleCheckPlaythrough!.turnHistory.length);
         });
         return;
       }
@@ -113,20 +123,30 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         // Convert API response to StoryPlaythrough format 
         _playthrough = _convertSimpleStateToPlaythrough(SimpleStoryState.fromPlayResponse(response));
         
-        // FINAL SAFETY CHECK: Never overwrite existing multi-turn data
-        final finalCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+        // FINAL SAFETY CHECK: Never overwrite existing multi-turn data (check both chunked and legacy)
+        var finalCheckPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
+        if (finalCheckPlaythrough == null) {
+          finalCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+        }
         if (finalCheckPlaythrough != null) {
           print('CRITICAL SAFETY: Existing data found right before save! Aborting introduction save to prevent data loss');
           _playthrough = finalCheckPlaythrough;
           setState(() {
-            _currentPage = finalCheckPlaythrough.turnHistory.length;
+            _currentPage = finalCheckPlaythrough!.turnHistory.length;
           });
           return;
         }
         
-        // Save complete playthrough to local storage
+        // Save complete playthrough to local storage (both legacy and chunked)
         await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
-        print('Populated local storage from API for ${widget.story.id}');
+        
+        // IMPORTANT: Also save using chunked storage for consistency
+        for (int i = 0; i < _playthrough!.turnHistory.length; i++) {
+          final turn = _playthrough!.turnHistory[i];
+          await IFEStateManager.saveTurn(widget.story.id, 'main', turn.turnNumber, turn);
+        }
+        
+        print('Populated local storage from API for ${widget.story.id} (both legacy and chunked)');
         
         // Update metadata cache
         await IFEStateManager.updateStoryProgress(widget.story.id, _playthrough!.turnHistory.length);
@@ -260,8 +280,15 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   return StoryStatusPage(
                     metadata: metadata,
                     onGoBack: () async {
+                      // Restore user input before clearing status
+                      final lastInput = metadata.userInput;
                       await IFEStateManager.clearStoryStatus(widget.story.id);
                       _reloadStoryState();
+                      
+                      // Restore the input text so user doesn't have to retype
+                      if (lastInput != null && lastInput.isNotEmpty) {
+                        _inputController.text = lastInput;
+                      }
                     },
                     onRetry: metadata.userInput != null 
                         ? () async => await _handleApiStoryInput(metadata.userInput!)
@@ -396,6 +423,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     // Check if this turn should show input cluster
     final shouldShowInput = _shouldShowInputCluster() && 
                            turn.turnNumber == _playthrough!.numberOfTurns;
+    
 
     return SafeArea(
       child: Column(
@@ -404,8 +432,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Back button
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
@@ -421,16 +449,39 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                     ),
                   ),
                 ),
-
-                // Page indicator
-                Text(
-                  'Turn ${turn.turnNumber}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                
+                // Spacer to center the story title with turn
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '${widget.story.title} (Turn ${turn.turnNumber})',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ),
+
+                // Settings gear icon
+                GestureDetector(
+                  onTap: () => _openSettings(),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(
+                      Icons.settings,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      size: 20,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(width: 8),
 
                 // Token display - now tappable
                 GestureDetector(
@@ -696,7 +747,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
   /// Reload story state from local storage after a successful turn
   Future<void> _reloadStoryState() async {
-    final savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+    // Try chunked storage first, fallback to legacy
+    var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
+    if (savedPlaythrough == null) {
+      savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
+    }
     if (savedPlaythrough != null) {
       _playthrough = savedPlaythrough;
       
@@ -739,6 +794,23 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => const InfiniteeriumPurchaseScreen(),
+      ),
+    );
+  }
+  
+  void _openSettings() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => StorySettingsOverlay(
+        storyId: widget.story.id,
+        onSettingsChanged: () {
+          // Callback when settings change - reload the story state
+          setState(() {
+            // This will trigger a rebuild and reload the playthrough
+          });
+          _reloadStoryState();
+        },
       ),
     );
   }

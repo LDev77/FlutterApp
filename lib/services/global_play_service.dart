@@ -102,13 +102,16 @@ class GlobalPlayService {
     }
   }
 
-  /// Save the play response to local storage (always happens)
+  /// Save the play response to local storage using atomic chunked storage (always happens)
   static Future<void> _savePlayResponse(
     String storyId,
     String input,
     TurnData previousTurn,
     PlayResponse response,
   ) async {
+    const playthroughId = 'main'; // Use consistent playthrough ID
+    
+    // CRITICAL: Storage failures for successful API responses must be fatal
     try {
       // Update token balance if provided in POST response
       if (response.tokenBalance != null) {
@@ -117,7 +120,7 @@ class GlobalPlayService {
       }
 
       // Create new turn with complete response data
-      final updatedTurn = TurnData(
+      final newTurn = TurnData(
         narrativeMarkdown: response.narrative,
         userInput: input,
         availableOptions: response.options,
@@ -126,50 +129,27 @@ class GlobalPlayService {
         turnNumber: previousTurn.turnNumber + 1,
       );
 
-      // Load existing story state and update or add the new turn
-      final existingPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
-      if (existingPlaythrough != null) {
-        final updatedHistory = List<TurnData>.from(existingPlaythrough.turnHistory);
-        
-        // Check if the last turn is a placeholder (empty narrative) that we should replace
-        if (updatedHistory.isNotEmpty && 
-            updatedHistory.last.narrativeMarkdown.isEmpty &&
-            updatedHistory.last.userInput == input) {
-          // Replace the placeholder turn with the complete turn
-          updatedHistory[updatedHistory.length - 1] = updatedTurn;
-          debugPrint('DEBUG: Replaced placeholder turn with complete response');
-        } else {
-          // Add as new turn
-          updatedHistory.add(updatedTurn);
-          debugPrint('DEBUG: Added new turn to history');
-        }
-        
-        final updatedPlaythrough = StoryPlaythrough(
-          storyId: storyId,
-          turnHistory: updatedHistory,
-          currentTurnIndex: updatedHistory.length - 1,
-          lastTurnDate: DateTime.now(),
-          numberOfTurns: updatedHistory.length,
-        );
+      debugPrint('DEBUG: About to save turn ${newTurn.turnNumber} atomically for story: $storyId');
+      debugPrint('DEBUG: Turn narrative length: ${response.narrative.length}');
+      debugPrint('DEBUG: Turn options count: ${response.options.length}');
 
-        // Save complete playthrough to local storage
-        debugPrint('DEBUG: About to save complete playthrough - Story ID: "$storyId"');
-        debugPrint('DEBUG: Playthrough has ${updatedPlaythrough.turnHistory.length} turns');
-        debugPrint('DEBUG: New turn narrative length: ${response.narrative.length}');
-        debugPrint('DEBUG: New turn options count: ${response.options.length}');
-        
-        await IFEStateManager.saveCompleteStoryState(storyId, updatedPlaythrough);
-        debugPrint('DEBUG: Complete save operation completed for story: $storyId');
-        
-        // Update metadata cache with new progress and token spend
-        final tokenCost = response.options.isNotEmpty ? 1 : 0;
-        await IFEStateManager.updateStoryProgress(storyId, updatedPlaythrough.turnHistory.length, tokensSpent: tokenCost);
-      } else {
-        debugPrint('Warning: Could not find existing playthrough for story: $storyId');
-      }
+      // ATOMIC SAVE: Each successful API response saves exactly one turn
+      // This prevents cascade failures that caused "6 turns → 4 turns" bug
+      await IFEStateManager.saveTurn(storyId, playthroughId, newTurn.turnNumber, newTurn);
+      
+      debugPrint('DEBUG: Turn ${newTurn.turnNumber} saved atomically for story: $storyId');
+      
+      // Update metadata with new turn count
+      final turnCount = IFEStateManager.getTurnCount(storyId, playthroughId);
+      final tokenCost = response.options.isNotEmpty ? 1 : 0;
+      await IFEStateManager.updateStoryProgress(storyId, turnCount, tokensSpent: tokenCost);
+      
+      debugPrint('DEBUG: Story $storyId now has $turnCount total turns');
+      
     } catch (e) {
-      debugPrint('Failed to save play response for story $storyId: $e');
-      rethrow;
+      // FATAL ERROR: If we can't save a successful API response, that's catastrophic
+      // Don't let successful API responses disappear into the void
+      throw Exception('FATAL STORAGE ERROR: Cannot save successful API response for story $storyId turn ${previousTurn.turnNumber + 1}: $e');
     }
   }
 
@@ -209,8 +189,11 @@ class GlobalPlayService {
     final callbackCount = _callbacks[storyId]?.length ?? 0;
     debugPrint('Registered callbacks: $callbackCount');
     
-    // Check local storage
-    final savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+    // Check local storage (chunked first, then legacy)
+    var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(storyId);
+    if (savedPlaythrough == null) {
+      savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+    }
     if (savedPlaythrough != null) {
       debugPrint('Local storage turns: ${savedPlaythrough.turnHistory.length}');
       debugPrint('Last turn number: ${savedPlaythrough.turnHistory.last.turnNumber}');
@@ -228,7 +211,11 @@ class GlobalPlayService {
   /// List all turns for a story with details
   static void debugAllTurns(String storyId) {
     debugPrint('=== ALL TURNS FOR: $storyId ===');
-    final savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+    // Try chunked storage first, then legacy
+    var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(storyId);
+    if (savedPlaythrough == null) {
+      savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
+    }
     if (savedPlaythrough != null) {
       for (int i = 0; i < savedPlaythrough.turnHistory.length; i++) {
         final turn = savedPlaythrough.turnHistory[i];
@@ -238,6 +225,26 @@ class GlobalPlayService {
       debugPrint('No local storage found');
     }
     debugPrint('=== END ALL TURNS ===');
+  }
+
+  /// Debug story metadata in readable format
+  static void debugStoryMetadata(String storyId) {
+    debugPrint('=== STORY METADATA FOR: $storyId ===');
+    final metadata = IFEStateManager.getStoryMetadata(storyId);
+    if (metadata != null) {
+      debugPrint('Story ID: ${metadata.storyId}');
+      debugPrint('Current Turn: ${metadata.currentTurn}');
+      debugPrint('Status: ${metadata.status}');
+      debugPrint('User Input: ${metadata.userInput}');
+      debugPrint('Message: ${metadata.message}');
+      debugPrint('Last Played: ${metadata.lastPlayedAt}');
+      debugPrint('Last Input Time: ${metadata.lastInputTime}');
+      debugPrint('Is Completed: ${metadata.isCompleted}');
+      debugPrint('Total Tokens Spent: ${metadata.totalTokensSpent}');
+    } else {
+      debugPrint('No story metadata found');
+    }
+    debugPrint('=== END STORY METADATA ===');
   }
 
   /// Cleanup method (can be called when app is shutting down)

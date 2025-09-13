@@ -4,6 +4,7 @@ import '../models/catalog/genre_row.dart';
 import '../models/catalog/catalog_story.dart';
 import '../models/story.dart'; // Still needed for StoryReaderScreen compatibility
 import '../widgets/cached_cover_image.dart';
+import '../widgets/infinity_loading.dart';
 import '../services/catalog_service.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
@@ -146,11 +147,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.auto_awesome,
-                        color: Colors.purple,
-                        size: 16,
-                      ),
+                      const Text('🪙', style: TextStyle(fontSize: 16)),
                       const SizedBox(width: 6),
                       Text(
                         _userTokens > 0 ? '$_userTokens' : '--',
@@ -159,12 +156,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.add_circle_outline,
-                        color: Colors.purple.withOpacity(0.7),
-                        size: 16,
                       ),
                     ],
                   ),
@@ -225,7 +216,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   child: Center(
                     child: Padding(
                       padding: EdgeInsets.all(50.0),
-                      child: CircularProgressIndicator(color: Colors.purple),
+                      child: InfinityLoading(
+                        size: 120,
+                        message: 'Creating your world...',
+                      ),
                     ),
                   ),
                 )

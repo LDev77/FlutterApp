@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/story_metadata.dart';
 import '../services/state_manager.dart';
 import '../screens/infiniteerium_purchase_screen.dart';
+import 'infinity_loading.dart';
 
 class StoryStatusPage extends StatelessWidget {
   final StoryMetadata metadata;
@@ -162,12 +163,13 @@ class StoryStatusPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: Theme.of(context).colorScheme.primary,
+            const InfinityLoading(
+              size: 80,
+              showMessage: false,
             ),
             const SizedBox(height: 16),
             Text(
-              'Infiniteer is crafting your story...',
+              'Creating your world...',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 fontSize: 16,

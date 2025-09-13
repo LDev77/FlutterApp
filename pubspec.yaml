@@ -38,6 +38,9 @@ dependencies:
   # Text Rendering & Markdown (using updated package instead of deprecated flutter_markdown)
   markdown_widget: ^2.3.2+6
   
+  # Animations
+  lottie: ^3.1.2
+  
   # In-App Purchases
   in_app_purchase: ^3.1.13
   
@@ -86,6 +89,7 @@ flutter:
   assets:
     - assets/images/
     - assets/catalog/
+    - assets/animations/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
