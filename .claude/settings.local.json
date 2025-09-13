@@ -14,7 +14,12 @@
       "Bash(dart run build_runner build:*)",
       "WebFetch(domain:github.com)",
       "Bash(dir:*)",
-      "WebFetch(domain:api.flutter.dev)"
+      "WebFetch(domain:api.flutter.dev)",
+      "Bash(dart:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.mit.edu)",
+      "Bash(curl:*)",
+      "Bash(gzip:*)"
     ],
     "deny": [],
     "ask": []

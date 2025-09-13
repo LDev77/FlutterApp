@@ -1,7 +1,63 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:spell_check_on_client/spell_check_on_client.dart';
 import '../models/turn_data.dart';
 import '../services/state_manager.dart';
 import 'infinity_loading.dart';
+
+// Custom spell check service that bridges spell_check_on_client with Flutter's native spell check
+class CustomSpellCheckService extends SpellCheckService {
+  final SpellCheck _spellCheck;
+
+  CustomSpellCheckService(this._spellCheck);
+
+  @override
+  Future<List<SuggestionSpan>> fetchSpellCheckSuggestions(
+    Locale locale,
+    String text,
+  ) async {
+    print('🔍 Spell check called for text: "$text"');
+    final List<SuggestionSpan> suggestionSpans = <SuggestionSpan>[];
+
+    // Split text into words and check each one
+    final words = text.split(RegExp(r'\s+'));
+    int currentOffset = 0;
+
+    for (final word in words) {
+      if (word.isNotEmpty) {
+        // Find the actual position of this word in the text (accounting for whitespace)
+        final wordStart = text.indexOf(word, currentOffset);
+        if (wordStart != -1) {
+          currentOffset = wordStart;
+
+          // Clean the word for spell checking (remove punctuation)
+          final cleanWord = word.replaceAll(RegExp(r'[^\w]'), '');
+
+          if (cleanWord.isNotEmpty) {
+            // Check if the word needs correction
+            final correctedWord = _spellCheck.didYouMean(cleanWord);
+
+            // If didYouMean returns something different, the word is misspelled
+            if (correctedWord != cleanWord && correctedWord.isNotEmpty) {
+              // Create a SuggestionSpan for this misspelled word
+              suggestionSpans.add(
+                SuggestionSpan(
+                  TextRange(start: currentOffset, end: currentOffset + word.length),
+                  [correctedWord], // Use the corrected word as the suggestion
+                ),
+              );
+            }
+          }
+
+          currentOffset += word.length;
+        }
+      }
+    }
+
+    return suggestionSpans;
+  }
+}
 
 class InputCluster extends StatefulWidget {
   final TurnData turn;
@@ -40,6 +96,11 @@ class _InputClusterState extends State<InputCluster> {
   bool _hasInputText = false; // Track if input field has content
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
+
+  // Spell check functionality
+  SpellCheck? _spellCheck;
+  bool _spellCheckInitialized = false;
+  List<TextSpan> _spellCheckedTextSpans = [];
   
   // Method to close options from parent
   void _closeOptions() {
@@ -144,6 +205,49 @@ class _InputClusterState extends State<InputCluster> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateInputClusterHeight();
     });
+
+    // Initialize spell check
+    _initializeSpellCheck();
+  }
+
+  Future<void> _initializeSpellCheck() async {
+    try {
+      print('📝 Initializing custom spell check...');
+
+      // Load dictionary from assets
+      String content = await rootBundle.loadString('assets/dictionaries/en_words.txt');
+
+      // Initialize spell checker with English language letters
+      _spellCheck = SpellCheck.fromWordsContent(
+        content,
+        letters: LanguageLetters.getLanguageForLanguage('en'),
+      );
+
+      setState(() {
+        _spellCheckInitialized = true;
+      });
+
+      print('📝 Spell check initialized with ${content.split('\n').length} words');
+      print('📝 Testing spell check: "tst" -> "${_spellCheck!.didYouMean("tst")}"');
+      print('📝 Testing spell check: "hello" -> "${_spellCheck!.didYouMean("hello")}"');
+    } catch (e) {
+      print('❌ Failed to initialize spell check: $e');
+      // Continue without spell check
+      setState(() {
+        _spellCheckInitialized = false;
+      });
+    }
+  }
+
+  // Custom spell check service for adult-friendly spell checking
+  SpellCheckService? get _customSpellCheckService {
+    if (!_spellCheckInitialized || _spellCheck == null) {
+      print('🔍 SpellCheckService: Not initialized or null');
+      return null;
+    }
+
+    print('🔍 SpellCheckService: Creating CustomSpellCheckService');
+    return CustomSpellCheckService(_spellCheck!);
   }
 
   void _updateInputClusterHeight() {
@@ -256,6 +360,24 @@ class _InputClusterState extends State<InputCluster> {
                       maxLines: 4,
                       minLines: 2,
                       textCapitalization: TextCapitalization.sentences,
+                      spellCheckConfiguration: () {
+                        print('🔧 Building spellCheckConfiguration...');
+                        if (_spellCheckInitialized && _customSpellCheckService != null) {
+                          print('🔧 Using custom SpellCheckConfiguration');
+                          return SpellCheckConfiguration(
+                            spellCheckService: _customSpellCheckService,
+                            misspelledTextStyle: TextStyle(
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.purple.withOpacity(0.8),
+                              decorationStyle: TextDecorationStyle.wavy,
+                              decorationThickness: 2,
+                            ),
+                          );
+                        } else {
+                          print('🔧 Using disabled SpellCheckConfiguration');
+                          return const SpellCheckConfiguration.disabled();
+                        }
+                      }(),
                       ),
                     ),
                   ),

@@ -51,6 +51,9 @@ dependencies:
   shared_preferences: ^2.3.2
   path_provider: ^2.1.4
   flutter_secure_storage: ^9.2.2
+
+  # Spell Check
+  spell_check_on_client: ^1.0.0
   
   # Animations
   animated_text_kit: ^4.2.2
@@ -90,6 +93,7 @@ flutter:
     - assets/images/
     - assets/catalog/
     - assets/animations/
+    - assets/dictionaries/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
