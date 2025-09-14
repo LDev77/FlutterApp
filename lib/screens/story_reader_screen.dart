@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import '../models/story.dart';
 import '../models/turn_data.dart';
 import '../models/api_models.dart';
+import '../models/story_metadata.dart';
 import '../widgets/cover_page.dart';
 import '../widgets/turn_page_content.dart';
 import '../widgets/input_cluster.dart';
 import '../widgets/story_status_page.dart';
 import '../widgets/story_settings_overlay.dart';
 import '../services/state_manager.dart';
-import '../services/sample_data.dart';
 import '../services/secure_api_service.dart';
 import '../services/global_play_service.dart';
+import '../services/catalog_service.dart';
 import 'infiniteerium_purchase_screen.dart';
+import '../icons/custom_icons.dart';
 import 'dart:async';
 
 class StoryReaderScreen extends StatefulWidget {
@@ -37,12 +39,22 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // Check for stale pending states before loading story
     _checkTimeoutAndLoad();
-    
+
     // Register for global play service callbacks
     GlobalPlayService.registerCallback(widget.story.id, _onPlayComplete);
+  }
+
+  /// Override the back navigation to refresh catalog metadata
+  Future<void> _handleBackNavigation() async {
+    // Refresh StoryMetadata from latest playthrough before leaving
+    await CatalogService.refreshStoryMetadata();
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _checkTimeoutAndLoad() async {
@@ -54,57 +66,33 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   Future<void> _loadStoryPlaythrough() async {
-    // 1) ALWAYS start with local storage first
-    if (widget.story.id == 'Test Story') {
-      // Test Story uses sample data system (keep existing functionality)
-      _playthrough = SampleData.createTestStoryPlaythrough();
-      print('Loaded TEST story with ${_playthrough!.turnHistory.length} turns');
-      setState(() {
-        _currentPage = 1;
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _pageController.animateToPage(1, 
-          duration: const Duration(milliseconds: 300), 
-          curve: Curves.easeInOut);
-      });
-      return;
-    }
-
-    // For all other stories, check local storage first (try chunked storage first, fallback to legacy)
+    // 1) ALWAYS start with local storage first - use modern chunked storage
     print('DEBUG: Checking chunked storage for story ID: "${widget.story.id}"');
     var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
-    
-    if (savedPlaythrough == null) {
-      print('DEBUG: No chunked storage found, checking legacy storage for story ID: "${widget.story.id}"');
-      savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
-    }
-    
+
     print('DEBUG: Storage result: ${savedPlaythrough != null ? "FOUND with ${savedPlaythrough!.turnHistory.length} turns" : "NOT FOUND"}');
-    
+
     if (savedPlaythrough != null) {
       // Found complete playthrough data
       print('Found complete local storage for ${widget.story.id} with ${savedPlaythrough.turnHistory.length} turns');
       _playthrough = savedPlaythrough;
-      
+
       // Navigate to the last turn (where input cluster is)
       final lastTurnIndex = _playthrough!.turnHistory.length;
       setState(() {
         _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
       });
-      
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
       });
       return; // Important: return early to avoid the API call path
     } else {
-      // No local data - call GET /play to populate
-      print('No local storage for ${widget.story.id} - calling GET /play');
-      
-      // SAFETY CHECK: Double-check storage before overwriting (check both chunked and legacy)
+      // No local data - create placeholder to show cover page first
+      print('No local storage for ${widget.story.id} - creating placeholder for cover page');
+
+      // SAFETY CHECK: Double-check modern storage before overwriting
       var doubleCheckPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
-      if (doubleCheckPlaythrough == null) {
-        doubleCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
-      }
       if (doubleCheckPlaythrough != null) {
         print('SAFETY: Found existing data on double-check! Using existing ${doubleCheckPlaythrough.turnHistory.length} turns');
         _playthrough = doubleCheckPlaythrough;
@@ -116,78 +104,69 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         });
         return;
       }
-      
-      try {
-        final response = await SecureApiService.getStoryIntroduction(widget.story.id);
-        
-        // Convert API response to StoryPlaythrough format 
-        _playthrough = _convertSimpleStateToPlaythrough(SimpleStoryState.fromPlayResponse(response));
-        
-        // FINAL SAFETY CHECK: Never overwrite existing multi-turn data (check both chunked and legacy)
-        var finalCheckPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
-        if (finalCheckPlaythrough == null) {
-          finalCheckPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
-        }
-        if (finalCheckPlaythrough != null) {
-          print('CRITICAL SAFETY: Existing data found right before save! Aborting introduction save to prevent data loss');
-          _playthrough = finalCheckPlaythrough;
-          setState(() {
-            _currentPage = finalCheckPlaythrough!.turnHistory.length;
-          });
-          return;
-        }
-        
-        // Save complete playthrough to local storage (both legacy and chunked)
-        await IFEStateManager.saveCompleteStoryState(widget.story.id, _playthrough!);
-        
-        // IMPORTANT: Also save using chunked storage for consistency
-        for (int i = 0; i < _playthrough!.turnHistory.length; i++) {
-          final turn = _playthrough!.turnHistory[i];
-          await IFEStateManager.saveTurn(widget.story.id, 'main', turn.turnNumber, turn);
-        }
-        
-        print('Populated local storage from API for ${widget.story.id} (both legacy and chunked)');
-        
-        // Update metadata cache
-        await IFEStateManager.updateStoryProgress(widget.story.id, _playthrough!.turnHistory.length);
-        
-        // Navigate to the last turn (where input cluster is)
-        final lastTurnIndex = _playthrough!.turnHistory.length;
-        setState(() {
-          _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
-        });
-        
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
-        });
-      } catch (e) {
-        print('Failed to load story ${widget.story.id}: $e');
-        _showErrorDialog('Unable to load story', 
-          'Could not connect to the server. Please check your internet connection and try again.');
-        return;
-      }
+
+      // Create placeholder playthrough to show cover page
+      _playthrough = StoryPlaythrough(
+        storyId: widget.story.id,
+        turnHistory: [], // Empty - will be populated when user navigates from cover
+        currentTurnIndex: 0,
+        lastTurnDate: DateTime.now(),
+        numberOfTurns: 0,
+      );
+
+      setState(() {
+        _currentPage = 0; // Stay on cover page
+      });
+
+      print('Placeholder created - showing cover page, waiting for user to begin');
     }
   }
 
-  // Convert SimpleStoryState to StoryPlaythrough format for UI compatibility
-  StoryPlaythrough _convertSimpleStateToPlaythrough(SimpleStoryState simpleState) {
-    final turnData = TurnData(
-      narrativeMarkdown: simpleState.narrative,
-      userInput: '', // No previous input for current turn
-      availableOptions: simpleState.options,
-      encryptedGameState: simpleState.storedState,
-      timestamp: DateTime.now(),
-      turnNumber: 1,
-    );
+  /// Initialize story by calling GET /play (only for new stories)
+  Future<void> _initializeNewStory() async {
+    // Only initialize if we have an empty placeholder playthrough
+    if (_playthrough == null || _playthrough!.turnHistory.isNotEmpty) {
+      return;
+    }
 
-    return StoryPlaythrough(
-      storyId: widget.story.id,
-      turnHistory: [turnData],
-      currentTurnIndex: 0,
-      lastTurnDate: DateTime.now(),
-      numberOfTurns: 1,
-    );
+    try {
+      final response = await SecureApiService.getStoryIntroduction(widget.story.id);
+
+      // Create TurnData directly from PlayResponse
+      final turnData = TurnData(
+        narrativeMarkdown: response.narrative,
+        userInput: '[Story Beginning]',
+        availableOptions: response.options,
+        encryptedGameState: response.storedState,
+        timestamp: DateTime.now(),
+        turnNumber: 1,
+        peekAvailable: response.peekAvailable,
+        noTurnMessage: response.noTurnMessage,
+      );
+
+      _playthrough = StoryPlaythrough(
+        storyId: widget.story.id,
+        turnHistory: [turnData],
+        currentTurnIndex: 0,
+        lastTurnDate: DateTime.now(),
+        numberOfTurns: 1,
+      );
+
+      // Save the introduction turn using modern chunked storage only
+      await IFEStateManager.saveTurn(widget.story.id, 'main', 1, turnData);
+      // Progress is tracked in PlaythroughMetadata, not StoryMetadata
+      // StoryMetadata will be refreshed by CatalogService when story closes
+
+      print('Initialized story ${widget.story.id} with introduction turn');
+      setState(() {}); // Refresh UI with new story data
+
+    } catch (e) {
+      print('Failed to initialize story ${widget.story.id}: $e');
+      _showErrorDialog('Unable to load story',
+        'Could not connect to the server. Please check your internet connection and try again.');
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +178,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.pop(context),
+            onPressed: _handleBackNavigation,
           ),
         ),
         body: Center(
@@ -258,16 +237,23 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                 // Cover page
                 return CoverPage(
                   story: widget.story,
-                  currentTurn: _playthrough!.currentTurnIndex + 1,
-                  totalTurns: _playthrough!.numberOfTurns,
-                  onContinue: () {
+                  currentTurn: _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.currentTurnIndex + 1,
+                  totalTurns: _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.numberOfTurns,
+                  isNewStory: _playthrough!.turnHistory.isEmpty,
+                  onContinue: () async {
+                    // For new stories (empty turnHistory), initialize first
+                    if (_playthrough!.turnHistory.isEmpty) {
+                      await _initializeNewStory();
+                    }
+                    // Navigate to the appropriate page
+                    final targetPage = _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.currentTurnIndex + 1;
                     _pageController.animateToPage(
-                      _playthrough!.currentTurnIndex + 1,
+                      targetPage,
                       duration: const Duration(milliseconds: 600),
                       curve: Curves.easeInOut,
                     );
                   },
-                  onClose: () => Navigator.pop(context),
+                  onClose: _handleBackNavigation,
                 );
               } else if (index <= _playthrough!.turnHistory.length) {
                 // Turn pages
@@ -275,14 +261,45 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                 return _buildTurnPage(_playthrough!.turnHistory[turnIndex]);
               } else {
                 // Status page (last page when hasStatusPage is true)
-                final metadata = IFEStateManager.getStoryMetadata(widget.story.id);
-                if (metadata != null && metadata.status != 'ready') {
+                // Get status from PlaythroughMetadata first, fallback to StoryMetadata
+                final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+                final storyMetadata = IFEStateManager.getStoryMetadata(widget.story.id);
+
+                StoryMetadata? displayMetadata;
+
+                if (playthroughMetadata != null && playthroughMetadata.status != 'ready') {
+                  // Create a temporary StoryMetadata from PlaythroughMetadata for display
+                  displayMetadata = StoryMetadata(
+                    storyId: playthroughMetadata.storyId,
+                    currentTurn: playthroughMetadata.currentTurn,
+                    lastPlayedAt: playthroughMetadata.lastPlayedAt,
+                    isCompleted: playthroughMetadata.isCompleted,
+                    totalTokensSpent: playthroughMetadata.tokensSpent,
+                    status: playthroughMetadata.status,
+                    userInput: playthroughMetadata.lastUserInput,
+                    message: playthroughMetadata.statusMessage,
+                    lastInputTime: playthroughMetadata.lastInputTime,
+                  );
+                } else if (storyMetadata != null && storyMetadata.status != 'ready') {
+                  displayMetadata = storyMetadata;
+                }
+
+                if (displayMetadata != null) {
                   return StoryStatusPage(
-                    metadata: metadata,
+                    metadata: displayMetadata,
                     onGoBack: () async {
                       // Restore user input before clearing status
-                      final lastInput = metadata.userInput;
-                      await IFEStateManager.clearStoryStatus(widget.story.id);
+                      final lastInput = displayMetadata?.userInput;
+                      // Clear playthrough status
+                      final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+                      if (playthroughMetadata != null) {
+                        final updated = playthroughMetadata.copyWith(
+                          status: 'ready',
+                          statusMessage: null,
+                          lastUserInput: null,
+                        );
+                        await IFEStateManager.savePlaythroughMetadata(updated);
+                      }
                       _reloadStoryState();
                       
                       // Restore the input text so user doesn't have to retype
@@ -290,8 +307,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                         _inputController.text = lastInput;
                       }
                     },
-                    onRetry: metadata.userInput != null 
-                        ? () async => await _handleApiStoryInput(metadata.userInput!)
+                    onRetry: displayMetadata?.userInput != null
+                        ? () async => await _handleApiStoryInput(displayMetadata!.userInput!)
                         : null,
                   );
                 } else {
@@ -372,6 +389,58 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                 ),
               ),
             ),
+
+          // Start for Free button (only for new stories on cover page)
+          if (_currentPage == 0 && _playthrough!.turnHistory.isEmpty)
+            Positioned(
+              right: 20, // Same distance from edge as left arrow
+              bottom: 20, // Same level as navigation buttons
+              child: GestureDetector(
+                onTap: () async {
+                  // Initialize story first
+                  await _initializeNewStory();
+                  // Navigate to first turn
+                  _pageController.animateToPage(
+                    1,
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOut,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.purple, // Bright magenta
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Start for Free',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
         ),
       ),
@@ -380,6 +449,13 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
   /// Check if there's a status page that should be shown
   bool _hasStatusPage() {
+    // Check PlaythroughMetadata first, fallback to StoryMetadata
+    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+    if (playthroughMetadata != null) {
+      return playthroughMetadata.status != 'ready';
+    }
+
+    // Fallback to StoryMetadata (for backward compatibility)
     final metadata = IFEStateManager.getStoryMetadata(widget.story.id);
     final status = metadata?.status ?? 'ready';
     return status != 'ready';
@@ -435,7 +511,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
               children: [
                 // Back button
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  onTap: _handleBackNavigation,
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -496,7 +572,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('🪙', style: TextStyle(fontSize: 16)),
+                        Icon(
+                          CustomIcons.coin,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           '${IFEStateManager.getTokens()}',
@@ -536,7 +616,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 0), // Remove bottom padding
             physics: const ClampingScrollPhysics(),
-            child: TurnPageContent(turn: turn),
+            child: TurnPageContent(
+              turn: turn,
+              storyId: widget.story.id,
+              playthroughId: 'main',
+            ),
           ),
         ),
         
@@ -579,7 +663,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
               physics: const ClampingScrollPhysics(),
-              child: TurnPageContent(turn: turn),
+              child: TurnPageContent(
+              turn: turn,
+              storyId: widget.story.id,
+              playthroughId: 'main',
+            ),
             ),
           ),
         
@@ -659,14 +747,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     _inputController.clear();
     _inputFocusNode.unfocus();
 
-    // Set status to pending with timestamp and user input
-    await IFEStateManager.updateStoryStatus(
-      widget.story.id, 
-      'pending', 
-      input, 
-      null,
-      timestamp: DateTime.now(),
-    );
+    // Update playthrough status instead of story status
+    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+    if (playthroughMetadata != null) {
+      final updated = playthroughMetadata.copyWith(
+        status: 'pending',
+        lastUserInput: input,
+        lastInputTime: DateTime.now(),
+      );
+      await IFEStateManager.savePlaythroughMetadata(updated);
+    }
 
     // Navigate to status page that will show pending state
     final statusPageIndex = _getTotalPageCount() - 1;
@@ -709,21 +799,25 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     if (!mounted) return;
     
     if (error != null) {
-      // Set status to exception with error message
-      await IFEStateManager.updateStoryStatus(
-        widget.story.id,
-        'exception',
-        null, // Keep existing userInput
-        _getErrorMessage(error),
-      );
+      // Set playthrough status to exception with error message
+      final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+      if (playthroughMetadata != null) {
+        final updated = playthroughMetadata.copyWith(
+          status: 'exception',
+          statusMessage: _getErrorMessage(error),
+        );
+        await IFEStateManager.savePlaythroughMetadata(updated);
+      }
     } else if (response != null) {
-      // Success - set status to message temporarily, then ready
-      await IFEStateManager.updateStoryStatus(
-        widget.story.id,
-        'message',
-        null,
-        'Turn completed successfully!',
-      );
+      // Success - set playthrough status to message temporarily, then ready
+      final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+      if (playthroughMetadata != null) {
+        final updated = playthroughMetadata.copyWith(
+          status: 'message',
+          statusMessage: 'Turn completed successfully!',
+        );
+        await IFEStateManager.savePlaythroughMetadata(updated);
+      }
       
       // Reload the story state from local storage
       await _reloadStoryState();
@@ -731,7 +825,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       // Brief delay to show success message, then set to ready
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
-        await IFEStateManager.clearStoryStatus(widget.story.id);
+        // Clear playthrough status
+        final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+        if (playthroughMetadata != null) {
+          final updated = playthroughMetadata.copyWith(
+            status: 'ready',
+            statusMessage: null,
+            lastUserInput: null,
+          );
+          await IFEStateManager.savePlaythroughMetadata(updated);
+        }
         // Reload again to show final state without status page
         await _reloadStoryState();
       }
@@ -749,9 +852,6 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   Future<void> _reloadStoryState() async {
     // Try chunked storage first, fallback to legacy
     var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
-    if (savedPlaythrough == null) {
-      savedPlaythrough = IFEStateManager.getCompleteStoryState(widget.story.id);
-    }
     if (savedPlaythrough != null) {
       _playthrough = savedPlaythrough;
       
@@ -777,9 +877,9 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop(); // Close dialog
-                Navigator.of(context).pop(); // Go back to library
+                await _handleBackNavigation(); // Go back to library with catalog refresh
               },
               child: const Text('OK'),
             ),

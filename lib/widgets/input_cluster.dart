@@ -5,6 +5,7 @@ import 'package:spell_check_on_client/spell_check_on_client.dart';
 import '../models/turn_data.dart';
 import '../services/state_manager.dart';
 import 'infinity_loading.dart';
+import '../icons/custom_icons.dart';
 
 // Custom spell check service that bridges spell_check_on_client with Flutter's native spell check
 class CustomSpellCheckService extends SpellCheckService {
@@ -17,7 +18,6 @@ class CustomSpellCheckService extends SpellCheckService {
     Locale locale,
     String text,
   ) async {
-    print('🔍 Spell check called for text: "$text"');
     final List<SuggestionSpan> suggestionSpans = <SuggestionSpan>[];
 
     // Split text into words and check each one
@@ -228,8 +228,6 @@ class _InputClusterState extends State<InputCluster> {
       });
 
       print('📝 Spell check initialized with ${content.split('\n').length} words');
-      print('📝 Testing spell check: "tst" -> "${_spellCheck!.didYouMean("tst")}"');
-      print('📝 Testing spell check: "hello" -> "${_spellCheck!.didYouMean("hello")}"');
     } catch (e) {
       print('❌ Failed to initialize spell check: $e');
       // Continue without spell check
@@ -242,11 +240,9 @@ class _InputClusterState extends State<InputCluster> {
   // Custom spell check service for adult-friendly spell checking
   SpellCheckService? get _customSpellCheckService {
     if (!_spellCheckInitialized || _spellCheck == null) {
-      print('🔍 SpellCheckService: Not initialized or null');
       return null;
     }
 
-    print('🔍 SpellCheckService: Creating CustomSpellCheckService');
     return CustomSpellCheckService(_spellCheck!);
   }
 
@@ -361,9 +357,7 @@ class _InputClusterState extends State<InputCluster> {
                       minLines: 2,
                       textCapitalization: TextCapitalization.sentences,
                       spellCheckConfiguration: () {
-                        print('🔧 Building spellCheckConfiguration...');
                         if (_spellCheckInitialized && _customSpellCheckService != null) {
-                          print('🔧 Using custom SpellCheckConfiguration');
                           return SpellCheckConfiguration(
                             spellCheckService: _customSpellCheckService,
                             misspelledTextStyle: TextStyle(
@@ -374,7 +368,6 @@ class _InputClusterState extends State<InputCluster> {
                             ),
                           );
                         } else {
-                          print('🔧 Using disabled SpellCheckConfiguration');
                           return const SpellCheckConfiguration.disabled();
                         }
                       }(),
@@ -467,11 +460,11 @@ class _InputClusterState extends State<InputCluster> {
                                   ]
                                 : [],
                           ),
-                          child: const Center(
-                            child: Text(
-                              '🪙',
-                              style: TextStyle(fontSize: 20),
-                              textAlign: TextAlign.center,
+                          child: Center(
+                            child: Icon(
+                              CustomIcons.coin,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -520,9 +513,10 @@ class _InputClusterState extends State<InputCluster> {
                 ),
               ),
             ),
-            const Text(
-              '🪙',
-              style: TextStyle(fontSize: 16),
+            Icon(
+              CustomIcons.coin,
+              size: 16,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ],
         ),

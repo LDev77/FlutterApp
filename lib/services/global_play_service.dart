@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/api_models.dart';
 import '../models/turn_data.dart';
-import '../models/story.dart';
 import 'secure_api_service.dart';
 import 'secure_auth_manager.dart';
 import 'state_manager.dart';
@@ -119,7 +118,29 @@ class GlobalPlayService {
         debugPrint('Updated token balance from server: ${response.tokenBalance}');
       }
 
-      // Create new turn with complete response data
+      // Handle NoTurnMessage case - update playthrough status but DON'T save a turn
+      if (response.noTurnMessage) {
+        debugPrint('DEBUG: NoTurnMessage=true - updating playthrough status without saving turn');
+
+        final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
+        if (playthroughMetadata != null) {
+          final updated = playthroughMetadata.copyWith(
+            lastPlayedAt: DateTime.now(),
+            status: 'message',
+            statusMessage: response.narrative,
+            lastUserInput: input, // Preserve user input for restoration
+            lastInputTime: DateTime.now(),
+            // DON'T update currentTurn/totalTurns - this is not a real turn
+            // DON'T charge tokens - API handles token cost for failed requests
+          );
+          await IFEStateManager.savePlaythroughMetadata(updated);
+        }
+
+        debugPrint('DEBUG: Playthrough status updated for NoTurnMessage case');
+        return; // Exit early - no turn to save
+      }
+
+      // Normal turn processing - create and save turn
       final newTurn = TurnData(
         narrativeMarkdown: response.narrative,
         userInput: input,
@@ -127,6 +148,8 @@ class GlobalPlayService {
         encryptedGameState: response.storedState,
         timestamp: DateTime.now(),
         turnNumber: previousTurn.turnNumber + 1,
+        peekAvailable: response.peekAvailable,
+        noTurnMessage: false, // Always false for real turns
       );
 
       debugPrint('DEBUG: About to save turn ${newTurn.turnNumber} atomically for story: $storyId');
@@ -136,13 +159,24 @@ class GlobalPlayService {
       // ATOMIC SAVE: Each successful API response saves exactly one turn
       // This prevents cascade failures that caused "6 turns → 4 turns" bug
       await IFEStateManager.saveTurn(storyId, playthroughId, newTurn.turnNumber, newTurn);
-      
+
       debugPrint('DEBUG: Turn ${newTurn.turnNumber} saved atomically for story: $storyId');
-      
-      // Update metadata with new turn count
+
+      // Update playthrough metadata with new turn count
       final turnCount = IFEStateManager.getTurnCount(storyId, playthroughId);
       final tokenCost = response.options.isNotEmpty ? 1 : 0;
-      await IFEStateManager.updateStoryProgress(storyId, turnCount, tokensSpent: tokenCost);
+
+      final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
+      if (playthroughMetadata != null) {
+        final updated = playthroughMetadata.copyWith(
+          currentTurn: turnCount,
+          totalTurns: turnCount,
+          tokensSpent: playthroughMetadata.tokensSpent + tokenCost,
+          lastPlayedAt: DateTime.now(),
+          status: 'ready',
+        );
+        await IFEStateManager.savePlaythroughMetadata(updated);
+      }
       
       debugPrint('DEBUG: Story $storyId now has $turnCount total turns');
       
@@ -189,11 +223,8 @@ class GlobalPlayService {
     final callbackCount = _callbacks[storyId]?.length ?? 0;
     debugPrint('Registered callbacks: $callbackCount');
     
-    // Check local storage (chunked first, then legacy)
+    // Check local storage (modern chunked storage)
     var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(storyId);
-    if (savedPlaythrough == null) {
-      savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
-    }
     if (savedPlaythrough != null) {
       debugPrint('Local storage turns: ${savedPlaythrough.turnHistory.length}');
       debugPrint('Last turn number: ${savedPlaythrough.turnHistory.last.turnNumber}');
@@ -211,20 +242,58 @@ class GlobalPlayService {
   /// List all turns for a story with details
   static void debugAllTurns(String storyId) {
     debugPrint('=== ALL TURNS FOR: $storyId ===');
-    // Try chunked storage first, then legacy
+
+    // Check turn count first
+    final turnCount = IFEStateManager.getTurnCount(storyId, 'main');
+    debugPrint('Turn count from IFEStateManager: $turnCount');
+
+    // Get from modern chunked storage
     var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(storyId);
-    if (savedPlaythrough == null) {
-      savedPlaythrough = IFEStateManager.getCompleteStoryState(storyId);
-    }
     if (savedPlaythrough != null) {
+      debugPrint('Found playthrough with ${savedPlaythrough.turnHistory.length} turns');
       for (int i = 0; i < savedPlaythrough.turnHistory.length; i++) {
         final turn = savedPlaythrough.turnHistory[i];
-        debugPrint('Turn ${i + 1}: "${turn.userInput}" -> ${turn.narrativeMarkdown.length} chars, ${turn.availableOptions.length} options');
+        debugPrint('Turn ${i + 1} (turnNumber: ${turn.turnNumber}): "${turn.userInput}" -> ${turn.narrativeMarkdown.length} chars, ${turn.availableOptions.length} options${turn.noTurnMessage ? " [NoTurnMessage]" : ""}');
       }
     } else {
-      debugPrint('No local storage found');
+      debugPrint('No playthrough found in chunked storage');
     }
+
+    // Also check playthrough metadata
+    final metadata = IFEStateManager.getPlaythroughMetadata(storyId, 'main');
+    if (metadata != null) {
+      debugPrint('Playthrough metadata: currentTurn=${metadata.currentTurn}, totalTurns=${metadata.totalTurns}, status=${metadata.status}');
+    } else {
+      debugPrint('No playthrough metadata found');
+    }
+
     debugPrint('=== END ALL TURNS ===');
+  }
+
+  /// Debug playthrough metadata in readable format
+  static void debugPlaythroughMetadata(String storyId, {String playthroughId = 'main'}) {
+    debugPrint('=== PLAYTHROUGH METADATA FOR: $storyId ($playthroughId) ===');
+    final metadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
+    if (metadata != null) {
+      debugPrint('Story ID: ${metadata.storyId}');
+      debugPrint('Playthrough ID: ${metadata.playthroughId}');
+      debugPrint('Save Name: ${metadata.saveName}');
+      debugPrint('Current Turn: ${metadata.currentTurn}');
+      debugPrint('Total Turns: ${metadata.totalTurns}');
+      debugPrint('Status: ${metadata.status}');
+      debugPrint('Is Completed: ${metadata.isCompleted}');
+      debugPrint('Tokens Spent: ${metadata.tokensSpent}');
+      debugPrint('Created At: ${metadata.createdAt}');
+      debugPrint('Last Played At: ${metadata.lastPlayedAt}');
+      debugPrint('Last Input Time: ${metadata.lastInputTime}');
+      debugPrint('Last User Input: "${metadata.lastUserInput ?? 'null'}"');
+      debugPrint('Status Message: "${metadata.statusMessage ?? 'null'}"');
+      debugPrint('Ending Description: "${metadata.endingDescription ?? 'null'}"');
+      debugPrint('Composite Key: ${metadata.compositeKey}');
+    } else {
+      debugPrint('No playthrough metadata found for $storyId ($playthroughId)');
+    }
+    debugPrint('=== END PLAYTHROUGH METADATA ===');
   }
 
   /// Debug story metadata in readable format

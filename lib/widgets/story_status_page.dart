@@ -3,6 +3,7 @@ import '../models/story_metadata.dart';
 import '../services/state_manager.dart';
 import '../screens/infiniteerium_purchase_screen.dart';
 import 'infinity_loading.dart';
+import '../icons/custom_icons.dart';
 
 class StoryStatusPage extends StatelessWidget {
   final StoryMetadata metadata;
@@ -66,7 +67,11 @@ class StoryStatusPage extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('🪙', style: TextStyle(fontSize: 16)),
+                        Icon(
+                          CustomIcons.coin,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           '${IFEStateManager.getTokens()}',

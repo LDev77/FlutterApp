@@ -19,7 +19,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:www.mit.edu)",
       "Bash(curl:*)",
-      "Bash(gzip:*)"
+      "Bash(gzip:*)",
+      "Bash(cd:*)",
+      "Bash(del test_peek_serialization.dart)"
     ],
     "deny": [],
     "ask": []

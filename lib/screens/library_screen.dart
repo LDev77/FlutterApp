@@ -10,6 +10,7 @@ import '../services/state_manager.dart';
 import '../services/theme_service.dart';
 import 'story_reader_screen.dart';
 import 'infiniteerium_purchase_screen.dart';
+import '../icons/custom_icons.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -147,7 +148,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('🪙', style: TextStyle(fontSize: 16)),
+                      Icon(
+                        CustomIcons.coin,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         _userTokens > 0 ? '$_userTokens' : '--',

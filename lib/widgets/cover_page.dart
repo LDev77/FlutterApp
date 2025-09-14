@@ -8,6 +8,7 @@ class CoverPage extends StatefulWidget {
   final int totalTurns;
   final VoidCallback onContinue;
   final VoidCallback onClose;
+  final bool isNewStory;
 
   const CoverPage({
     super.key,
@@ -16,6 +17,7 @@ class CoverPage extends StatefulWidget {
     required this.totalTurns,
     required this.onContinue,
     required this.onClose,
+    this.isNewStory = false,
   });
 
   @override
@@ -140,7 +142,6 @@ class _CoverPageState extends State<CoverPage> {
               left: 0,
               right: 0,
               child: GestureDetector(
-                onTap: widget.onContinue,
                 onPanUpdate: (details) {
                   // Handle swipe gestures if overflow exists
                   if (!_hasOverflow) return;
@@ -211,19 +212,20 @@ class _CoverPageState extends State<CoverPage> {
                         margin: const EdgeInsets.only(top: 8),
                         child: Stack(
                           children: [
-                            // Turn N - always bottom right
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Text(
-                                'Turn ${widget.currentTurn}',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                            // Turn N - always bottom right (only for existing stories)
+                            if (!widget.isNewStory)
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Text(
+                                  'Turn ${widget.currentTurn}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
-                            ),
                             
                             // Arrow - center bottom (only if overflow)
                             if (_hasOverflow)

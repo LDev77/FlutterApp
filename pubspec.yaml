@@ -95,6 +95,12 @@ flutter:
     - assets/animations/
     - assets/dictionaries/
 
+  # Custom icon fonts
+  fonts:
+    - family: IcoMoon
+      fonts:
+        - asset: assets/icons/icomoon.ttf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
 

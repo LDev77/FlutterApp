@@ -1,7 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:convert';
 import '../models/api_models.dart';
-import '../models/story.dart';
 import '../models/turn_data.dart';
 import '../models/story_metadata.dart';
 import '../models/playthrough_metadata.dart';
@@ -34,108 +33,7 @@ class IFEStateManager {
     await Hive.openBox(_turnsBoxName);
   }
   
-  // Store simplified story state (narrative, options, storedState)
-  static Future<void> saveStoryState(String storyId, SimpleStoryState state) async {
-    final box = Hive.box(_stateBoxName);
-    final key = 'story_${storyId}_state';
-    final jsonData = jsonEncode(state.toJson());
-    print('DEBUG: StateManager saving key: "$key"');
-    print('DEBUG: StateManager JSON length: ${jsonData.length}');
-    await box.put(key, jsonData);
-    print('DEBUG: StateManager save completed, box now has ${box.length} items');
-  }
-  
-  // Retrieve simplified story state
-  static SimpleStoryState? getStoryState(String storyId) {
-    final box = Hive.box(_stateBoxName);
-    final key = 'story_${storyId}_state';
-    print('DEBUG: StateManager looking for key: "$key"');
-    print('DEBUG: StateManager box has ${box.length} items: ${box.keys.toList()}');
-    final stateJson = box.get(key) as String?;
-    print('DEBUG: StateManager retrieved: ${stateJson != null ? "FOUND (${stateJson.length} chars)" : "NULL"}');
-    if (stateJson == null) return null;
-    
-    try {
-      final stateMap = jsonDecode(stateJson) as Map<String, dynamic>;
-      return SimpleStoryState.fromJson(stateMap);
-    } catch (e) {
-      // If parsing fails, return null (corrupted data)
-      return null;
-    }
-  }
-  
-  // Check if story has any saved state (used to determine if we need GET call)
-  static bool hasStoryState(String storyId) {
-    return getStoryState(storyId) != null;
-  }
 
-  // Store complete story playthrough (all turns)
-  static Future<void> saveCompleteStoryState(String storyId, StoryPlaythrough playthrough) async {
-    final box = Hive.box(_stateBoxName);
-    final key = 'complete_story_${storyId}_state';
-    
-    // Convert StoryPlaythrough to CompleteStoryState
-    final turnHistory = playthrough.turnHistory.map((turn) => StoredTurnData(
-      narrativeMarkdown: turn.narrativeMarkdown,
-      userInput: turn.userInput,
-      availableOptions: turn.availableOptions,
-      encryptedGameState: turn.encryptedGameState,
-      timestamp: turn.timestamp,
-      turnNumber: turn.turnNumber,
-    )).toList();
-    
-    final completeState = CompleteStoryState(
-      storyId: playthrough.storyId,
-      turnHistory: turnHistory,
-      currentTurnIndex: playthrough.currentTurnIndex,
-      lastTurnDate: playthrough.lastTurnDate,
-      numberOfTurns: playthrough.numberOfTurns,
-    );
-    
-    final jsonData = jsonEncode(completeState.toJson());
-    print('DEBUG: StateManager saving complete state key: "$key"');
-    print('DEBUG: StateManager complete state JSON length: ${jsonData.length}');
-    print('DEBUG: StateManager turns in history: ${turnHistory.length}');
-    await box.put(key, jsonData);
-    print('DEBUG: StateManager complete save completed, box now has ${box.length} items');
-  }
-
-  // Retrieve complete story playthrough
-  static StoryPlaythrough? getCompleteStoryState(String storyId) {
-    final box = Hive.box(_stateBoxName);
-    final key = 'complete_story_${storyId}_state';
-    print('DEBUG: StateManager looking for complete key: "$key"');
-    print('DEBUG: StateManager box has ${box.length} items: ${box.keys.toList()}');
-    final stateJson = box.get(key) as String?;
-    print('DEBUG: StateManager retrieved complete: ${stateJson != null ? "FOUND (${stateJson.length} chars)" : "NULL"}');
-    if (stateJson == null) return null;
-
-    try {
-      final stateMap = jsonDecode(stateJson) as Map<String, dynamic>;
-      final completeState = CompleteStoryState.fromJson(stateMap);
-      
-      // Convert back to StoryPlaythrough
-      final turnHistory = completeState.turnHistory.map((storedTurn) => TurnData(
-        narrativeMarkdown: storedTurn.narrativeMarkdown,
-        userInput: storedTurn.userInput,
-        availableOptions: storedTurn.availableOptions,
-        encryptedGameState: storedTurn.encryptedGameState,
-        timestamp: storedTurn.timestamp,
-        turnNumber: storedTurn.turnNumber,
-      )).toList();
-      
-      return StoryPlaythrough(
-        storyId: completeState.storyId,
-        turnHistory: turnHistory,
-        currentTurnIndex: completeState.currentTurnIndex,
-        lastTurnDate: completeState.lastTurnDate,
-        numberOfTurns: completeState.numberOfTurns,
-      );
-    } catch (e) {
-      print('Error parsing complete story state: $e');
-      return null;
-    }
-  }
 
   // CHUNKED TURN STORAGE - Atomic per-turn storage for bulletproof data integrity
   
@@ -143,11 +41,15 @@ class IFEStateManager {
   static Future<void> saveTurn(String storyId, String playthroughId, int turnNumber, TurnData turn) async {
     final box = Hive.box(_turnsBoxName);
     final key = 'turn_${storyId}_${playthroughId}_${turnNumber}';
-    
+
     try {
       final jsonData = jsonEncode(turn.toJson());
       await box.put(key, jsonData);
       print('DEBUG: Saved turn atomically - Key: "$key", JSON length: ${jsonData.length}');
+
+      // Ensure PlaythroughMetadata exists when we save turns
+      await ensureDefaultPlaythrough(storyId);
+
     } catch (e) {
       // Storage failures should be fatal - successful API responses cannot be lost
       throw Exception('FATAL: Failed to save turn $turnNumber for story $storyId: $e');
@@ -288,6 +190,11 @@ class IFEStateManager {
     return box.values.toList()
       ..sort((a, b) => b.lastPlayedAt.compareTo(a.lastPlayedAt));
   }
+
+  /// Get all playthrough metadata (alias for getAllPlaythroughs)
+  static List<PlaythroughMetadata> getAllPlaythroughMetadata() {
+    return getAllPlaythroughs();
+  }
   
   /// Update playthrough progress
   static Future<void> updatePlaythroughProgress(
@@ -412,9 +319,9 @@ class IFEStateManager {
     return box.get('story_${storyId}_progress');
   }
   
-  // Check if story is started (same as hasStoryState)
+  // Check if story is started by looking for any saved turns
   static bool isStoryStarted(String storyId) {
-    return hasStoryState(storyId);
+    return getCompleteStoryStateFromChunks(storyId) != null;
   }
   
   // Get story completion percentage (mock implementation)
@@ -424,6 +331,7 @@ class IFEStateManager {
   }
   
   // Story metadata management
+  // NOTE: Only CatalogService should call this method to derive from PlaythroughMetadata
   static Future<void> saveStoryMetadata(StoryMetadata metadata) async {
     final box = Hive.box<StoryMetadata>(_metadataBoxName);
     await box.put(metadata.storyId, metadata);
@@ -438,49 +346,33 @@ class IFEStateManager {
     final box = Hive.box<StoryMetadata>(_metadataBoxName);
     return box.values.toList();
   }
+
+  static Future<void> deleteStoryMetadata(String storyId) async {
+    final box = Hive.box<StoryMetadata>(_metadataBoxName);
+    await box.delete(storyId);
+  }
   
+  // DEPRECATED: Use PlaythroughMetadata instead. Only CatalogService should update StoryMetadata.
+  @deprecated
   static Future<void> updateStoryProgress(String storyId, int currentTurn, {int? tokensSpent}) async {
-    final box = Hive.box<StoryMetadata>(_metadataBoxName);
-    final existing = box.get(storyId);
-    
-    final metadata = existing?.copyWith(
-      currentTurn: currentTurn,
-      lastPlayedAt: DateTime.now(),
-      totalTokensSpent: existing.totalTokensSpent + (tokensSpent ?? 0),
-    ) ?? StoryMetadata(
-      storyId: storyId,
-      currentTurn: currentTurn,
-      lastPlayedAt: DateTime.now(),
-      totalTokensSpent: tokensSpent ?? 0,
-    );
-    
-    await box.put(storyId, metadata);
+    // This method is deprecated - StoryMetadata should only be updated by CatalogService
+    // based on PlaythroughMetadata changes. Direct calls to this method should be removed.
+    throw UnsupportedError('updateStoryProgress is deprecated. Use PlaythroughMetadata updates instead.');
   }
 
-  // Status management methods
+  // DEPRECATED: Use PlaythroughMetadata instead. Only CatalogService should update StoryMetadata.
+  @deprecated
   static Future<void> updateStoryStatus(String storyId, String? status, String? userInput, String? message, {DateTime? timestamp}) async {
-    final box = Hive.box<StoryMetadata>(_metadataBoxName);
-    final existing = box.get(storyId);
-    
-    final metadata = existing?.copyWith(
-      status: status,
-      userInput: userInput,
-      message: message,
-      lastInputTime: timestamp,
-    ) ?? StoryMetadata(
-      storyId: storyId,
-      currentTurn: 1,
-      status: status,
-      userInput: userInput,
-      message: message,
-      lastInputTime: timestamp,
-    );
-    
-    await box.put(storyId, metadata);
+    // This method is deprecated - StoryMetadata should only be updated by CatalogService
+    // based on PlaythroughMetadata changes. Direct calls to this method should be removed.
+    throw UnsupportedError('updateStoryStatus is deprecated. Use PlaythroughMetadata updates instead.');
   }
 
+  @deprecated
   static Future<void> clearStoryStatus(String storyId) async {
-    await updateStoryStatus(storyId, 'ready', null, null);
+    // This method is deprecated - StoryMetadata should only be updated by CatalogService
+    // based on PlaythroughMetadata changes. Direct calls to this method should be removed.
+    throw UnsupportedError('clearStoryStatus is deprecated. Use PlaythroughMetadata updates instead.');
   }
 
   // Comprehensive recovery mechanism - timeout + hard checks
@@ -492,7 +384,16 @@ class IFEStateManager {
       final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
       if (needsRecovery != null) {
         print('Recovering stale state for story: ${metadata.storyId} (reason: ${needsRecovery.reason})');
-        await updateStoryStatus(metadata.storyId, 'ready', null, null);
+        // Update PlaythroughMetadata instead of StoryMetadata
+        final playthroughMetadata = getPlaythroughMetadata(metadata.storyId, 'main');
+        if (playthroughMetadata != null) {
+          final updated = playthroughMetadata.copyWith(
+            status: 'ready',
+            statusMessage: null,
+            lastUserInput: null,
+          );
+          await savePlaythroughMetadata(updated);
+        }
       }
     }
   }
@@ -537,7 +438,16 @@ class IFEStateManager {
       final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
       if (needsRecovery != null) {
         print('Recovering story state for $storyId: ${needsRecovery.reason}');
-        await updateStoryStatus(storyId, 'ready', null, null);
+        // Update PlaythroughMetadata instead of StoryMetadata
+        final playthroughMetadata = getPlaythroughMetadata(storyId, 'main');
+        if (playthroughMetadata != null) {
+          final updated = playthroughMetadata.copyWith(
+            status: 'ready',
+            statusMessage: null,
+            lastUserInput: null,
+          );
+          await savePlaythroughMetadata(updated);
+        }
       }
     }
   }
@@ -552,7 +462,16 @@ class IFEStateManager {
         final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
         if (needsRecovery != null) {
           print('Force recovery for story: ${metadata.storyId} (${needsRecovery.reason})');
-          await updateStoryStatus(metadata.storyId, 'ready', null, null);
+          // Update PlaythroughMetadata instead of StoryMetadata
+          final playthroughMetadata = getPlaythroughMetadata(metadata.storyId, 'main');
+          if (playthroughMetadata != null) {
+            final updated = playthroughMetadata.copyWith(
+              status: 'ready',
+              statusMessage: null,
+              lastUserInput: null,
+            );
+            await savePlaythroughMetadata(updated);
+          }
         }
       }
     }
@@ -591,6 +510,35 @@ class IFEStateManager {
   }
   
   // Clear all data for testing
+  /// Update peek data for a specific turn
+  static Future<void> updateTurnPeekData(String storyId, String playthroughId, int turnNumber, List<Peek> peekData) async {
+    final box = Hive.box(_turnsBoxName);
+    final key = 'turn_${storyId}_${playthroughId}_$turnNumber';
+
+    try {
+      // Get existing turn
+      final existingData = box.get(key);
+      if (existingData == null) {
+        throw Exception('Turn $turnNumber not found for story $storyId');
+      }
+
+      // Parse existing turn
+      final turnJson = jsonDecode(existingData as String) as Map<String, dynamic>;
+      final existingTurn = TurnData.fromJson(turnJson);
+
+      // Update with new peek data
+      final updatedTurn = existingTurn.copyWith(peekAvailable: peekData);
+
+      // Save updated turn
+      final jsonData = jsonEncode(updatedTurn.toJson());
+      await box.put(key, jsonData);
+
+      print('DEBUG: Updated peek data for turn $turnNumber - Key: "$key", Peeks: ${peekData.length}');
+    } catch (e) {
+      throw Exception('Failed to update peek data for turn $turnNumber in story $storyId: $e');
+    }
+  }
+
   /// Delete a specific turn from chunked storage
   static Future<void> deleteTurn(String storyId, String playthroughId, int turnNumber) async {
     final box = Hive.box(_turnsBoxName);

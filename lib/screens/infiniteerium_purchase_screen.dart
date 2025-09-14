@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
 import '../widgets/infinity_loading.dart';
+import '../icons/custom_icons.dart';
 
 class InfiniteeriumPurchaseScreen extends StatefulWidget {
   const InfiniteeriumPurchaseScreen({super.key});
@@ -60,7 +61,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🪙', style: TextStyle(fontSize: 28)),
+            Icon(
+              CustomIcons.coin,
+              size: 28,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
             const SizedBox(width: 8),
             const Text(
               'Infiniteerium',
@@ -132,7 +137,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Text('🪙', style: TextStyle(fontSize: 20)),
+                    Icon(
+                      CustomIcons.coin,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       '${IFEStateManager.getTokens()}',
@@ -185,7 +194,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                             colors: [Colors.purple, Colors.purple.shade700],
                           ),
                         ),
-                        child: const Text('🪙', style: TextStyle(fontSize: 56)),
+                        child: Icon(
+                          CustomIcons.coin,
+                          size: 56,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
                       );
                     },
                   ),
@@ -240,7 +253,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                         color: pack.color.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Text('🪙', style: TextStyle(fontSize: 30)),
+                      child: Icon(
+                        CustomIcons.coin,
+                        size: 30,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     
@@ -458,7 +475,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('🪙', style: TextStyle(fontSize: 16)),
+                Icon(
+                  CustomIcons.coin,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '${pack.tokens} tokens',

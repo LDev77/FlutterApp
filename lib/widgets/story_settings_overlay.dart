@@ -113,7 +113,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                         color: canDelete && hasTurns ? Colors.orange : Colors.grey,
                       ),
                       title: Text(
-                        'Delete Last Turn',
+                        'Undo last turn',
                         style: TextStyle(
                           color: canDelete && hasTurns 
                               ? Theme.of(context).colorScheme.onSurface
@@ -211,9 +211,9 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Delete Last Turn'),
+          title: const Text('Undo Last Turn'),
           content: Text(
-            'Are you sure you want to delete turn ${StoryStorageManager.getTurnCount(widget.storyId)}? This action cannot be undone.',
+            'Are you sure you want to undo turn ${StoryStorageManager.getTurnCount(widget.storyId)}? This action cannot be undone.',
           ),
           actions: [
             TextButton(

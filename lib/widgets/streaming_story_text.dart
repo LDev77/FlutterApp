@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
+import '../models/api_models.dart';
+import 'peekable_story_text.dart';
 
 class StreamingStoryText extends StatelessWidget {
   final String fullText;
   final bool shouldAnimate;
   final Duration animationDuration;
   final VoidCallback? onAnimationComplete;
+  final List<Peek> peekAvailable;
+  final String? storyId;
+  final int? turnNumber;
+  final PlayRequest? playRequest;
+  final String? playthroughId;
   
   const StreamingStoryText({
     super.key,
@@ -13,23 +20,59 @@ class StreamingStoryText extends StatelessWidget {
     this.shouldAnimate = false,
     this.animationDuration = const Duration(milliseconds: 800),
     this.onAnimationComplete,
+    this.peekAvailable = const [],
+    this.storyId,
+    this.turnNumber,
+    this.playRequest,
+    this.playthroughId = 'main',
   });
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Always log what peek data we have
+    print('DEBUG PEEK: StreamingStoryText.build() called with ${peekAvailable.length} peeks, shouldAnimate: $shouldAnimate');
+    if (peekAvailable.isNotEmpty) {
+      for (final peek in peekAvailable) {
+        print('DEBUG PEEK: StreamingStoryText has peek data for: "${peek.name}" (mind: ${peek.mind != null ? "present" : "null"}, thoughts: ${peek.thoughts != null ? "present" : "null"})');
+      }
+    }
+
     if (shouldAnimate) {
       return _AnimatedStoryText(
         fullText: fullText,
         animationDuration: animationDuration,
         onAnimationComplete: onAnimationComplete,
+        peekAvailable: peekAvailable,
+        storyId: storyId,
+        turnNumber: turnNumber,
+        playRequest: playRequest,
+        playthroughId: playthroughId ?? 'main',
       );
     } else {
-      // For history pages, render markdown immediately without animation
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      return MarkdownBlock(
-        data: fullText,
-        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
-      );
+      // For history pages, use peekable text if peek data available
+      print('DEBUG PEEK: StreamingStoryText conditions - peekAvailable: ${peekAvailable.length}, storyId: $storyId, turnNumber: $turnNumber, playRequest: ${playRequest != null ? "present" : "null"}');
+
+      if (peekAvailable.isNotEmpty &&
+          storyId != null &&
+          turnNumber != null &&
+          playRequest != null) {
+        print('DEBUG PEEK: StreamingStoryText using PeekableStoryText with ${peekAvailable.length} peeks');
+        return PeekableStoryText(
+          markdownText: fullText,
+          peekAvailable: peekAvailable,
+          storyId: storyId!,
+          turnNumber: turnNumber!,
+          playRequest: playRequest!,
+          playthroughId: playthroughId ?? 'main',
+        );
+      } else {
+        // Fallback to standard markdown rendering
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return MarkdownBlock(
+          data: fullText,
+          config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+        );
+      }
     }
   }
 }
@@ -38,11 +81,21 @@ class _AnimatedStoryText extends StatefulWidget {
   final String fullText;
   final Duration animationDuration;
   final VoidCallback? onAnimationComplete;
-  
+  final List<Peek> peekAvailable;
+  final String? storyId;
+  final int? turnNumber;
+  final PlayRequest? playRequest;
+  final String playthroughId;
+
   const _AnimatedStoryText({
     required this.fullText,
     this.animationDuration = const Duration(milliseconds: 800),
     this.onAnimationComplete,
+    this.peekAvailable = const [],
+    this.storyId,
+    this.turnNumber,
+    this.playRequest,
+    this.playthroughId = 'main',
   });
 
   @override
@@ -153,11 +206,27 @@ class _AnimatedStoryTextState extends State<_AnimatedStoryText>
                   margin: const EdgeInsets.only(bottom: 12.0),
                   child: Builder(
                     builder: (context) {
-                      final isDark = Theme.of(context).brightness == Brightness.dark;
-                      return MarkdownBlock(
-                        data: sentence,
-                        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
-                      );
+                      // Use peekable text if peek data available
+                      if (widget.peekAvailable.isNotEmpty &&
+                          widget.storyId != null &&
+                          widget.turnNumber != null &&
+                          widget.playRequest != null) {
+                        return PeekableStoryText(
+                          markdownText: sentence,
+                          peekAvailable: widget.peekAvailable,
+                          storyId: widget.storyId!,
+                          turnNumber: widget.turnNumber!,
+                          playRequest: widget.playRequest!,
+                          playthroughId: widget.playthroughId,
+                        );
+                      } else {
+                        // Fallback to standard markdown rendering
+                        final isDark = Theme.of(context).brightness == Brightness.dark;
+                        return MarkdownBlock(
+                          data: sentence,
+                          config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+                        );
+                      }
                     },
                   ),
                 ),

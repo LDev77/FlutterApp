@@ -1,17 +1,94 @@
 import 'package:flutter/material.dart';
 import '../models/turn_data.dart';
+import '../models/api_models.dart';
+import '../services/secure_auth_manager.dart';
 import 'streaming_story_text.dart';
 
 class TurnPageContent extends StatelessWidget {
   final TurnData turn;
+  final String? storyId;
+  final String playthroughId;
 
   const TurnPageContent({
     super.key,
     required this.turn,
+    this.storyId,
+    this.playthroughId = 'main',
   });
 
   @override
   Widget build(BuildContext context) {
+    // Handle NoTurnMessage case - show system message in orange box
+    if (turn.noTurnMessage) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Orange system message box
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.15),
+              border: Border.all(
+                color: Colors.orange.withOpacity(0.3),
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'System Message',
+                      style: TextStyle(
+                        color: Colors.orange.shade700,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  turn.narrativeMarkdown,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Note: User input will be restored by the input cluster
+          const Spacer(),
+
+          // Instructions
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Please go back and adjust your input, then try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -41,11 +118,43 @@ class TurnPageContent extends StatelessWidget {
         ],
 
         // Story markdown text
-        StreamingStoryText(
-          fullText: turn.narrativeMarkdown,
-          shouldAnimate: false,
+        FutureBuilder<PlayRequest?>(
+          future: _buildPlayRequest(),
+          builder: (context, snapshot) {
+            return StreamingStoryText(
+              fullText: turn.narrativeMarkdown,
+              shouldAnimate: false,
+              peekAvailable: turn.peekAvailable,
+              storyId: storyId,
+              turnNumber: turn.turnNumber,
+              playRequest: snapshot.data,
+              playthroughId: playthroughId,
+            );
+          },
         ),
       ],
     );
+  }
+
+  /// Build PlayRequest for peek API calls
+  Future<PlayRequest?> _buildPlayRequest() async {
+    if (storyId == null) return null;
+
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      if (userId == null) return null;
+
+      return PlayRequest(
+        userId: userId,
+        storyId: storyId!,
+        input: turn.userInput,
+        storedState: turn.encryptedGameState,
+        displayedNarrative: turn.narrativeMarkdown,
+        options: turn.availableOptions,
+      );
+    } catch (e) {
+      debugPrint('❌ Failed to build PlayRequest: $e');
+      return null;
+    }
   }
 }

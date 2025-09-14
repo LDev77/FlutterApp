@@ -1,5 +1,4 @@
 import '../services/state_manager.dart';
-import '../models/turn_data.dart';
 
 /// Service for manipulating story storage data
 /// Separated from UI concerns for clean architecture
@@ -8,11 +7,8 @@ class StoryStorageManager {
   /// Returns true if successful, false if no turn to delete
   static Future<bool> deleteLastTurn(String storyId, {String playthroughId = 'main'}) async {
     try {
-      // Get current playthrough
+      // Get current playthrough from modern chunked storage
       var playthrough = IFEStateManager.getCompleteStoryStateFromChunks(storyId);
-      if (playthrough == null) {
-        playthrough = IFEStateManager.getCompleteStoryState(storyId);
-      }
       
       if (playthrough == null || playthrough.turnHistory.isEmpty) {
         return false; // No turns to delete
@@ -25,15 +21,18 @@ class StoryStorageManager {
       
       // Update legacy storage by removing last turn and saving
       final updatedHistory = playthrough.turnHistory.sublist(0, playthrough.turnHistory.length - 1);
-      final updatedPlaythrough = playthrough.copyWith(
-        turnHistory: updatedHistory,
-        numberOfTurns: updatedHistory.length,
-        currentTurnIndex: updatedHistory.length - 1,
-      );
       
       if (updatedHistory.isNotEmpty) {
-        await IFEStateManager.saveCompleteStoryState(storyId, updatedPlaythrough);
-        await IFEStateManager.updateStoryProgress(storyId, updatedHistory.length);
+        // Update playthrough metadata
+        final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
+        if (playthroughMetadata != null) {
+          final updated = playthroughMetadata.copyWith(
+            currentTurn: updatedHistory.length,
+            totalTurns: updatedHistory.length,
+            lastPlayedAt: DateTime.now(),
+          );
+          await IFEStateManager.savePlaythroughMetadata(updated);
+        }
       } else {
         // If no turns left, delete entire story state
         await deleteEntirePlaythrough(storyId, playthroughId: playthroughId);
@@ -50,8 +49,8 @@ class StoryStorageManager {
   /// Returns true if successful
   static Future<bool> deleteEntirePlaythrough(String storyId, {String playthroughId = 'main'}) async {
     try {
-      // Clear story status and metadata
-      await IFEStateManager.clearStoryStatus(storyId);
+      // This method will delete all playthrough data
+      // StoryMetadata will be cleaned up by CatalogService
       
       // Delete complete story state (legacy)
       await IFEStateManager.deleteCompleteStoryState(storyId);
@@ -79,9 +78,6 @@ class StoryStorageManager {
   /// Get turn count for display purposes
   static int getTurnCount(String storyId, {String playthroughId = 'main'}) {
     var playthrough = IFEStateManager.getCompleteStoryStateFromChunks(storyId);
-    if (playthrough == null) {
-      playthrough = IFEStateManager.getCompleteStoryState(storyId);
-    }
     return playthrough?.turnHistory.length ?? 0;
   }
   

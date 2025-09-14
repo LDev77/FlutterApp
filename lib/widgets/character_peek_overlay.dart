@@ -1,0 +1,332 @@
+import 'package:flutter/material.dart';
+import '../models/api_models.dart';
+import '../services/character_name_parser.dart';
+import '../services/peek_service.dart';
+
+/// Modal overlay for displaying character peek information
+/// Similar to StorySettingsOverlay but for character insights
+class CharacterPeekOverlay extends StatefulWidget {
+  final Peek tappedCharacter;
+  final List<Peek> allAvailableCharacters;
+  final String storyId;
+  final int turnNumber;
+  final PlayRequest playRequest;
+  final String playthroughId;
+
+  const CharacterPeekOverlay({
+    super.key,
+    required this.tappedCharacter,
+    required this.allAvailableCharacters,
+    required this.storyId,
+    required this.turnNumber,
+    required this.playRequest,
+    this.playthroughId = 'main',
+  });
+
+  @override
+  State<CharacterPeekOverlay> createState() => _CharacterPeekOverlayState();
+}
+
+class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
+  bool _isLoading = false;
+  Peek? _currentPeek;
+  String? _errorMessage;
+  List<Peek> _revealedCharacters = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPeek = widget.tappedCharacter;
+  }
+
+  Future<void> _requestPeekData() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      debugPrint('🔍 Requesting peek data for ${widget.tappedCharacter.name}');
+
+      // Make the peek API call - this updates storage automatically
+      final peekResponse = await PeekService.requestPeekData(
+        playRequest: widget.playRequest,
+        storyId: widget.storyId,
+        turnNumber: widget.turnNumber,
+        playthroughId: widget.playthroughId,
+      );
+
+      // Store all revealed characters from the API response
+      _revealedCharacters = peekResponse.peekAvailable;
+
+      // Find the updated peek data for the tapped character
+      final updatedPeek = peekResponse.peekAvailable.firstWhere(
+        (peek) => peek.name == widget.tappedCharacter.name,
+        orElse: () => widget.tappedCharacter,
+      );
+
+      // Update token balance if we have a parent callback
+      debugPrint('💰 Peek complete - token balance: ${peekResponse.tokenBalance}');
+
+      setState(() {
+        _currentPeek = updatedPeek;
+        _isLoading = false;
+      });
+
+    } catch (e) {
+      debugPrint('❌ Peek request failed: $e');
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = _getErrorMessage(e);
+      });
+    }
+  }
+
+  String _getErrorMessage(dynamic error) {
+    if (error.toString().contains('InsufficientTokensException')) {
+      return 'Not enough tokens to peek into ${CharacterNameParser.getDisplayName(widget.tappedCharacter.name)}\'s mind.';
+    } else if (error.toString().contains('ServerBusyException')) {
+      return 'Server is busy. Try again in a moment.';
+    } else {
+      return 'Unable to connect. Please try again.';
+    }
+  }
+
+  /// Switch to viewing a different revealed character
+  void _switchToCharacter(Peek character) {
+    setState(() {
+      _currentPeek = character;
+    });
+  }
+
+  /// Create a proper sentence for revealing character minds
+  String _createRevealSentence() {
+    // Put the tapped character first, then others
+    final List<String> names = [];
+
+    // Add tapped character first
+    names.add(CharacterNameParser.getDisplayName(widget.tappedCharacter.name));
+
+    // Add other available characters (excluding the tapped one)
+    for (final character in widget.allAvailableCharacters) {
+      final displayName = CharacterNameParser.getDisplayName(character.name);
+      if (character.name != widget.tappedCharacter.name && !names.contains(displayName)) {
+        names.add(displayName);
+      }
+    }
+
+    if (names.length == 1) {
+      return 'Reveal the mind of ${names.first} this turn?';
+    } else if (names.length == 2) {
+      return 'Reveal the minds of ${names.first} and ${names.last} this turn?';
+    } else {
+      // For 3+: "Name1, Name2 and Name3"
+      final lastIndex = names.length - 1;
+      final commaPart = names.sublist(0, lastIndex).join(', ');
+      return 'Reveal the minds of $commaPart and ${names[lastIndex]} this turn?';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = CharacterNameParser.getDisplayName(widget.tappedCharacter.name);
+    final isPopulated = CharacterNameParser.isPeekDataPopulated(_currentPeek!);
+
+    return Material(
+      color: Colors.black.withOpacity(0.5),
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).pop(),
+        behavior: HitTestBehavior.translucent,
+        child: Center(
+          child: GestureDetector(
+            onTap: () {}, // Prevent closing when tapping on modal
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.all(24),
+              constraints: const BoxConstraints(maxWidth: 400),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Text(
+                    displayName,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Error message
+                  if (_errorMessage != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(color: Colors.red.shade700),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Content based on peek data state
+                  if (!isPopulated && !_isLoading) ...[
+                    // Button mode: not populated, prompt to peek
+                    ElevatedButton(
+                      onPressed: _requestPeekData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        _createRevealSentence(),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ] else if (_isLoading) ...[
+                    // Loading state
+                    const SizedBox(
+                      height: 60,
+                      child: Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                  ] else ...[
+                    // Content mode: show populated mind and thoughts
+                    if (_currentPeek!.mind != null) ...[
+                      Text(
+                        'Mind:',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _currentPeek!.mind!,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                      if (_currentPeek!.thoughts != null) const SizedBox(height: 16),
+                    ],
+
+                    if (_currentPeek!.thoughts != null) ...[
+                      Text(
+                        'Thoughts:',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _currentPeek!.thoughts!,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+
+                    // Show other revealed characters if available
+                    if (_revealedCharacters.length > 1) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Other revealed characters:',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _revealedCharacters
+                            .where((character) => character.name != _currentPeek!.name)
+                            .map((character) => GestureDetector(
+                                  onTap: () => _switchToCharacter(character),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      CharacterNameParser.getDisplayName(character.name),
+                                      style: TextStyle(
+                                        color: Theme.of(context).primaryColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  // Close button
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,5 +1,33 @@
 /// Flutter models matching the C# API request/response classes
 
+class Peek {
+  final String name;
+  final String? mind;
+  final String? thoughts;
+
+  const Peek({
+    required this.name,
+    this.mind,
+    this.thoughts,
+  });
+
+  factory Peek.fromJson(Map<String, dynamic> json) {
+    return Peek(
+      name: json['name'] as String? ?? json['Name'] as String? ?? '',
+      mind: json['mind'] as String? ?? json['Mind'] as String?,
+      thoughts: json['thoughts'] as String? ?? json['Thoughts'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'Name': name,
+      'Mind': mind,
+      'Thoughts': thoughts,
+    };
+  }
+}
+
 class PlayRequest {
   final String userId;
   final String storyId;
@@ -50,6 +78,8 @@ class PlayResponse {
   final List<ConversationMessage> messageHistory;
   final int? tokenBalance; // Available from POST /play responses, null on GET
   final String? error; // Server error message
+  final List<Peek> peekAvailable; // Character insights available this turn
+  final bool noTurnMessage; // When true, narrative contains system message, not story content
 
   const PlayResponse({
     this.narrative = '',
@@ -61,21 +91,27 @@ class PlayResponse {
     this.messageHistory = const [],
     this.tokenBalance, // Nullable - only from POST responses
     this.error, // Server error message
+    this.peekAvailable = const [],
+    this.noTurnMessage = false,
   });
 
   factory PlayResponse.fromJson(Map<String, dynamic> json) {
     return PlayResponse(
-      narrative: json['narrative'] as String? ?? '',
-      narrativeInner: json['narrativeInner'] as String? ?? '',
-      options: List<String>.from(json['options'] as List? ?? []),
-      storedState: json['storedState'] as String? ?? '',
-      ends: json['ends'] as bool? ?? false,
-      endingMneId: json['endingMneId'] as String? ?? '',
-      messageHistory: (json['messageHistory'] as List?)
+      narrative: json['narrative'] as String? ?? json['Narrative'] as String? ?? '',
+      narrativeInner: json['narrativeInner'] as String? ?? json['NarrativeInner'] as String? ?? '',
+      options: List<String>.from(json['options'] as List? ?? json['Options'] as List? ?? []),
+      storedState: json['storedState'] as String? ?? json['StoredState'] as String? ?? '',
+      ends: json['ends'] as bool? ?? json['Ends'] as bool? ?? false,
+      endingMneId: json['endingMneId'] as String? ?? json['EndingMneId'] as String? ?? '',
+      messageHistory: (json['messageHistory'] as List? ?? json['MessageHistory'] as List?)
           ?.map((item) => ConversationMessage.fromJson(item as Map<String, dynamic>))
           .toList() ?? [],
-      tokenBalance: json['tokenBalance'] as int? ?? json['TokenBalance'] as int?, // Handle both casingvariant)s
-      error: json['error'] as String?,
+      tokenBalance: json['tokenBalance'] as int? ?? json['TokenBalance'] as int?,
+      error: json['error'] as String? ?? json['Error'] as String?,
+      peekAvailable: (json['peekAvailable'] as List? ?? json['PeekAvailable'] as List?)
+          ?.map((item) => Peek.fromJson(item as Map<String, dynamic>))
+          .toList() ?? [],
+      noTurnMessage: json['noTurnMessage'] as bool? ?? json['NoTurnMessage'] as bool? ?? false,
     );
   }
 
@@ -90,6 +126,8 @@ class PlayResponse {
       'MessageHistory': messageHistory.map((msg) => msg.toJson()).toList(),
       if (tokenBalance != null) 'TokenBalance': tokenBalance,
       if (error != null) 'Error': error,
+      'PeekAvailable': peekAvailable.map((peek) => peek.toJson()).toList(),
+      'NoTurnMessage': noTurnMessage,
     };
   }
 }
@@ -118,85 +156,6 @@ class ConversationMessage {
   }
 }
 
-/// Complete story state for local storage - stores full turn history
-class CompleteStoryState {
-  final String storyId;
-  final List<StoredTurnData> turnHistory;
-  final int currentTurnIndex;
-  final DateTime lastTurnDate;
-  final int numberOfTurns;
-
-  const CompleteStoryState({
-    required this.storyId,
-    required this.turnHistory,
-    required this.currentTurnIndex,
-    required this.lastTurnDate,
-    required this.numberOfTurns,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'storyId': storyId,
-      'turnHistory': turnHistory.map((turn) => turn.toJson()).toList(),
-      'currentTurnIndex': currentTurnIndex,
-      'lastTurnDate': lastTurnDate.toIso8601String(),
-      'numberOfTurns': numberOfTurns,
-    };
-  }
-
-  factory CompleteStoryState.fromJson(Map<String, dynamic> json) {
-    return CompleteStoryState(
-      storyId: json['storyId'] as String,
-      turnHistory: (json['turnHistory'] as List)
-          .map((turn) => StoredTurnData.fromJson(turn as Map<String, dynamic>))
-          .toList(),
-      currentTurnIndex: json['currentTurnIndex'] as int,
-      lastTurnDate: DateTime.parse(json['lastTurnDate'] as String),
-      numberOfTurns: json['numberOfTurns'] as int,
-    );
-  }
-}
-
-/// Individual turn data for storage
-class StoredTurnData {
-  final String narrativeMarkdown;
-  final String userInput;
-  final List<String> availableOptions;
-  final String encryptedGameState;
-  final DateTime timestamp;
-  final int turnNumber;
-
-  const StoredTurnData({
-    required this.narrativeMarkdown,
-    required this.userInput,
-    required this.availableOptions,
-    required this.encryptedGameState,
-    required this.timestamp,
-    required this.turnNumber,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'narrativeMarkdown': narrativeMarkdown,
-      'userInput': userInput,
-      'availableOptions': availableOptions,
-      'encryptedGameState': encryptedGameState,
-      'timestamp': timestamp.toIso8601String(),
-      'turnNumber': turnNumber,
-    };
-  }
-
-  factory StoredTurnData.fromJson(Map<String, dynamic> json) {
-    return StoredTurnData(
-      narrativeMarkdown: json['narrativeMarkdown'] as String,
-      userInput: json['userInput'] as String,
-      availableOptions: List<String>.from(json['availableOptions'] as List),
-      encryptedGameState: json['encryptedGameState'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      turnNumber: json['turnNumber'] as int,
-    );
-  }
-}
 
 /// Account balance response from GET /api/account/{userId}
 class AccountResponse {
@@ -244,39 +203,30 @@ class CatalogRequest {
   }
 }
 
-/// Legacy - keeping for compatibility
-class SimpleStoryState {
-  final String narrative;
-  final List<String> options;
-  final String storedState;
+/// Response from POST /api/peek
+class PeekResponse {
+  final int tokenBalance;
+  final List<Peek> peekAvailable;
 
-  const SimpleStoryState({
-    required this.narrative,
-    required this.options,
-    required this.storedState,
+  const PeekResponse({
+    required this.tokenBalance,
+    this.peekAvailable = const [],
   });
 
-  factory SimpleStoryState.fromPlayResponse(PlayResponse response) {
-    return SimpleStoryState(
-      narrative: response.narrative,
-      options: response.options,
-      storedState: response.storedState,
+  factory PeekResponse.fromJson(Map<String, dynamic> json) {
+    return PeekResponse(
+      tokenBalance: json['tokenBalance'] as int? ?? json['TokenBalance'] as int? ?? 0,
+      peekAvailable: (json['peekAvailable'] as List? ?? json['PeekAvailable'] as List?)
+          ?.map((item) => Peek.fromJson(item as Map<String, dynamic>))
+          .toList() ?? [],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'narrative': narrative,
-      'options': options,
-      'storedState': storedState,
+      'TokenBalance': tokenBalance,
+      'PeekAvailable': peekAvailable.map((peek) => peek.toJson()).toList(),
     };
   }
-
-  factory SimpleStoryState.fromJson(Map<String, dynamic> json) {
-    return SimpleStoryState(
-      narrative: json['narrative'] as String,
-      options: List<String>.from(json['options'] as List),
-      storedState: json['storedState'] as String,
-    );
-  }
 }
+

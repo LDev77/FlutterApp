@@ -159,11 +159,48 @@ class SecureApiService {
     }
   }
   
+  /// Get character peek data (costs a token) - POST /api/peek
+  static Future<PeekResponse> getPeekData(PlayRequest request) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/peek'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(request.toJson()),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final peekResponse = PeekResponse.fromJson(responseData);
+
+        debugPrint('Peek data retrieved for user: ${request.userId.substring(0, 8)}... (${peekResponse.peekAvailable.length} characters)');
+        return peekResponse;
+      } else if (response.statusCode == 400) {
+        // Handle specific errors like insufficient tokens
+        final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+        throw InsufficientTokensException(errorData['message'] ?? 'Insufficient tokens for peek');
+      } else if (response.statusCode == 401) {
+        throw UnauthorizedException('Invalid or expired user ID');
+      } else if (response.statusCode == 408 || response.statusCode == 429 || response.statusCode >= 500) {
+        throw ServerBusyException('Server busy processing peek request. Try again soon. You were not charged a token.');
+      } else {
+        throw Exception('Connection issue. Please retry in a bit.');
+      }
+    } on TimeoutException {
+      throw ServerBusyException('Peek request timed out. Try again soon. You were not charged a token.');
+    } catch (e) {
+      debugPrint('Failed to get peek data: $e');
+      rethrow;
+    }
+  }
+
   /// Get user ID for display/debugging purposes (truncated for security)
   static Future<String?> getDisplayUserId() async {
     final userId = await SecureAuthManager.getUserId();
     if (userId == null) return null;
-    
+
     // Return truncated version for display
     if (userId.length > 8) {
       return '${userId.substring(0, 8)}...';
