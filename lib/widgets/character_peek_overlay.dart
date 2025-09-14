@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:markdown_widget/markdown_widget.dart';
 import '../models/api_models.dart';
 import '../services/character_name_parser.dart';
 import '../services/peek_service.dart';
@@ -48,7 +49,6 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
     });
 
     try {
-      debugPrint('🔍 Requesting peek data for ${widget.tappedCharacter.name}');
 
       // Make the peek API call - this updates storage automatically
       final peekResponse = await PeekService.requestPeekData(
@@ -67,8 +67,6 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
         orElse: () => widget.tappedCharacter,
       );
 
-      // Update token balance if we have a parent callback
-      debugPrint('💰 Peek complete - token balance: ${peekResponse.tokenBalance}');
 
       setState(() {
         _currentPeek = updatedPeek;
@@ -76,8 +74,6 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
       });
 
     } catch (e) {
-      debugPrint('❌ Peek request failed: $e');
-
       setState(() {
         _isLoading = false;
         _errorMessage = _getErrorMessage(e);
@@ -100,6 +96,26 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
     setState(() {
       _currentPeek = character;
     });
+  }
+
+  /// Combine mind and thoughts into single markdown text with separator
+  String _buildPeekContent() {
+    if (_currentPeek == null) return '';
+
+    final parts = <String>[];
+
+    if (_currentPeek!.mind != null && _currentPeek!.mind!.isNotEmpty) {
+      parts.add(_currentPeek!.mind!);
+    }
+
+    if (_currentPeek!.thoughts != null && _currentPeek!.thoughts!.isNotEmpty) {
+      parts.add(_currentPeek!.thoughts!);
+    }
+
+    if (parts.isEmpty) return '';
+
+    // Join with separator if both exist
+    return parts.join('\n\n---\n\n');
   }
 
   /// Create a proper sentence for revealing character minds
@@ -219,51 +235,27 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                       ),
                     ),
                   ] else ...[
-                    // Content mode: show populated mind and thoughts
-                    if (_currentPeek!.mind != null) ...[
-                      Text(
-                        'Mind:',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).primaryColor,
+                    // Content mode: show combined mind and thoughts in scrollable markdown
+                    Container(
+                      constraints: const BoxConstraints(
+                        maxHeight: 400, // Max height before scrolling
+                      ),
+                      child: SingleChildScrollView(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: MarkdownBlock(
+                            data: _buildPeekContent(),
+                            config: Theme.of(context).brightness == Brightness.dark
+                                ? MarkdownConfig.darkConfig
+                                : MarkdownConfig.defaultConfig,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _currentPeek!.mind!,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      if (_currentPeek!.thoughts != null) const SizedBox(height: 16),
-                    ],
-
-                    if (_currentPeek!.thoughts != null) ...[
-                      Text(
-                        'Thoughts:',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.deepPurple.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _currentPeek!.thoughts!,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
+                    ),
 
                     // Show other revealed characters if available
                     if (_revealedCharacters.length > 1) ...[

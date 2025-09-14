@@ -22,14 +22,11 @@ class PeekService {
     String playthroughId = 'main',
   }) async {
     try {
-      debugPrint('🔍 Requesting peek data for story: $storyId, turn: $turnNumber');
-
       // Make API call to get peek data (costs token)
       final peekResponse = await SecureApiService.getPeekData(playRequest);
 
       // Update token balance in local state
       await IFEStateManager.saveTokens(peekResponse.tokenBalance);
-      debugPrint('💰 Token balance updated: ${peekResponse.tokenBalance}');
 
       // Update turn data with peek information
       await IFEStateManager.updateTurnPeekData(
@@ -38,7 +35,6 @@ class PeekService {
         turnNumber,
         peekResponse.peekAvailable
       );
-      debugPrint('💾 Turn data updated with ${peekResponse.peekAvailable.length} peek entries');
 
       // Notify UI that peek data is ready
       _peekUpdatesController.add(PeekDataUpdatedEvent(
@@ -48,11 +44,9 @@ class PeekService {
         peekData: peekResponse.peekAvailable,
         newTokenBalance: peekResponse.tokenBalance,
       ));
-      debugPrint('📢 Peek data update event sent to UI');
 
       return peekResponse;
     } catch (e) {
-      debugPrint('❌ Failed to get peek data: $e');
       rethrow;
     }
   }
@@ -75,7 +69,6 @@ class PeekService {
       final turn = turns.firstWhere((t) => t.turnNumber == turnNumber, orElse: () => throw Exception('Turn not found'));
       return turn.peekAvailable;
     } catch (e) {
-      debugPrint('❌ Failed to get turn peek data: $e');
       return [];
     }
   }

@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import '../models/api_models.dart';
 import '../services/character_name_parser.dart';
 import 'character_peek_overlay.dart';
 
 /// Widget that renders story text with clickable character names
-/// Combines markdown rendering with interactive character peek functionality
+/// Always uses MarkdownBlock with custom configuration for peek functionality
 class PeekableStoryText extends StatelessWidget {
   final String markdownText;
   final List<Peek> peekAvailable;
@@ -27,9 +26,11 @@ class PeekableStoryText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Always use MarkdownBlock for consistent rendering
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     // If no peekable characters, use standard markdown rendering
     if (peekAvailable.isEmpty) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
       return MarkdownBlock(
         data: markdownText,
         config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
@@ -37,7 +38,6 @@ class PeekableStoryText extends StatelessWidget {
     }
 
     // Parse character names and create clickable spans
-    print('DEBUG PEEK: PeekableStoryText calling parseCharacterNames with ${peekAvailable.length} peeks');
     final clickableSpans = CharacterNameParser.parseCharacterNames(
       markdownText,
       peekAvailable,
@@ -45,201 +45,93 @@ class PeekableStoryText extends StatelessWidget {
 
     // If no character names found in text, use standard rendering
     if (clickableSpans.isEmpty) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
       return MarkdownBlock(
         data: markdownText,
         config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
       );
     }
 
-    // Render with clickable character names
-    return _buildClickableText(context, clickableSpans);
-  }
+    // Pre-process markdown to inject character links
+    final processedMarkdown = _injectCharacterLinks(markdownText, clickableSpans);
 
-  Widget _buildClickableText(BuildContext context, List<ClickableCharacterSpan> clickableSpans) {
-    final textSpans = <TextSpan>[];
-    int currentIndex = 0;
+    // Create MarkdownBlock with custom LinkConfig for character clicking
+    final config = _createPeekLinkConfig(isDark, context);
 
-    for (final span in clickableSpans) {
-      // Add non-clickable text before this span
-      if (currentIndex < span.startIndex) {
-        final beforeText = markdownText.substring(currentIndex, span.startIndex);
-        textSpans.add(TextSpan(text: beforeText));
-      }
-
-      // Add clickable character name span
-      textSpans.add(TextSpan(
-        text: span.displayText,
-        style: TextStyle(
-          color: Theme.of(context).primaryColor,
-          decoration: TextDecoration.underline,
-          decorationColor: Theme.of(context).primaryColor,
-          fontWeight: FontWeight.w600,
-        ),
-        recognizer: TapGestureRecognizer()
-          ..onTap = () => _showCharacterPeekOverlay(context, span),
-      ));
-
-      currentIndex = span.endIndex;
-    }
-
-    // Add remaining non-clickable text
-    if (currentIndex < markdownText.length) {
-      final remainingText = markdownText.substring(currentIndex);
-      textSpans.add(TextSpan(text: remainingText));
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          height: 1.6, // Line height for readability
-        ),
-        children: textSpans,
-      ),
+    return MarkdownBlock(
+      data: processedMarkdown,
+      config: config,
     );
   }
 
-  void _showCharacterPeekOverlay(BuildContext context, ClickableCharacterSpan span) {
-    debugPrint('🎯 Character tapped: ${span.character.name}');
+  /// Inject markdown links around character names using peek:// protocol
+  String _injectCharacterLinks(String markdown, List<ClickableCharacterSpan> spans) {
+    if (spans.isEmpty) return markdown;
 
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => CharacterPeekOverlay(
-        tappedCharacter: span.character,
-        allAvailableCharacters: peekAvailable,
-        storyId: storyId,
-        turnNumber: turnNumber,
-        playRequest: playRequest,
-        playthroughId: playthroughId,
-      ),
+    // Sort spans by position (descending) to avoid index shifting during injection
+    final sortedSpans = List<ClickableCharacterSpan>.from(spans)
+      ..sort((a, b) => b.startIndex.compareTo(a.startIndex));
+
+    String result = markdown;
+    for (final span in sortedSpans) {
+      // Extract the character text from the original position
+      final before = result.substring(0, span.startIndex);
+      final characterText = result.substring(span.startIndex, span.endIndex);
+      final after = result.substring(span.endIndex);
+
+      // Create markdown link with peek:// protocol
+      // Use character's internal name for the URL, display text for the link text
+      result = '$before[$characterText](peek://${span.character.name})$after';
+    }
+
+    return result;
+  }
+
+  /// Create MarkdownConfig with custom LinkConfig for peek characters
+  MarkdownConfig _createPeekLinkConfig(bool isDark, BuildContext context) {
+    // Create custom config with LinkConfig for peek character styling
+    return MarkdownConfig(
+      configs: [
+        LinkConfig(
+          style: TextStyle(
+            color: Theme.of(context).primaryColor,
+            decoration: TextDecoration.underline,
+            decorationColor: Theme.of(context).primaryColor,
+            fontWeight: FontWeight.w600,
+          ),
+          onTap: (url) => _handleLinkTap(url, context),
+        ),
+      ],
     );
   }
-}
 
-/// Enhanced version that supports markdown rendering with character name detection
-/// This version processes the markdown first, then overlays character spans
-class AdvancedPeekableStoryText extends StatelessWidget {
-  final String markdownText;
-  final List<Peek> peekAvailable;
-  final String storyId;
-  final int turnNumber;
-  final PlayRequest playRequest;
-  final String playthroughId;
+  /// Handle link taps - peek:// for characters, regular URLs for web links
+  void _handleLinkTap(String url, BuildContext context) {
+    if (url.startsWith('peek://')) {
+      // Extract character name from peek:// protocol
+      final characterName = url.substring(7); // Remove 'peek://' prefix
 
-  const AdvancedPeekableStoryText({
-    super.key,
-    required this.markdownText,
-    required this.peekAvailable,
-    required this.storyId,
-    required this.turnNumber,
-    required this.playRequest,
-    this.playthroughId = 'main',
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // If no peekable characters, use standard markdown rendering
-    if (peekAvailable.isEmpty) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      return MarkdownBlock(
-        data: markdownText,
-        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+      // Find the character from available peeks
+      final character = peekAvailable.firstWhere(
+        (peek) => peek.name == characterName,
+        orElse: () => Peek(name: characterName),
       );
-    }
 
-    // For now, strip basic markdown and render with character names
-    // TODO: Enhance this to properly handle markdown formatting while preserving character links
-    final plainText = _stripBasicMarkdown(markdownText);
-
-    final clickableSpans = CharacterNameParser.parseCharacterNames(
-      plainText,
-      peekAvailable,
-    );
-
-    if (clickableSpans.isEmpty) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      return MarkdownBlock(
-        data: markdownText,
-        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+      // Show character peek overlay
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => CharacterPeekOverlay(
+          tappedCharacter: character,
+          allAvailableCharacters: peekAvailable,
+          storyId: storyId,
+          turnNumber: turnNumber,
+          playRequest: playRequest,
+          playthroughId: playthroughId,
+        ),
       );
+    } else {
+      // Handle regular web links if needed
+      // Could use url_launcher here for actual web URLs
     }
-
-    return _buildClickableText(context, plainText, clickableSpans);
-  }
-
-  String _stripBasicMarkdown(String markdown) {
-    // Simple markdown stripping for now
-    // Remove bold/italic markers
-    String text = markdown
-        .replaceAll(RegExp(r'\*\*(.*?)\*\*'), r'$1') // Bold
-        .replaceAll(RegExp(r'\*(.*?)\*'), r'$1')     // Italic
-        .replaceAll(RegExp(r'_(.*?)_'), r'$1')       // Italic underscore
-        .replaceAll(RegExp(r'`(.*?)`'), r'$1');      // Inline code
-
-    // Remove headers
-    text = text.replaceAll(RegExp(r'^#{1,6}\s+'), '');
-
-    return text;
-  }
-
-  Widget _buildClickableText(BuildContext context, String text, List<ClickableCharacterSpan> clickableSpans) {
-    final textSpans = <TextSpan>[];
-    int currentIndex = 0;
-
-    for (final span in clickableSpans) {
-      // Add non-clickable text before this span
-      if (currentIndex < span.startIndex) {
-        final beforeText = text.substring(currentIndex, span.startIndex);
-        textSpans.add(TextSpan(text: beforeText));
-      }
-
-      // Add clickable character name span
-      textSpans.add(TextSpan(
-        text: span.displayText,
-        style: TextStyle(
-          color: Theme.of(context).primaryColor,
-          decoration: TextDecoration.underline,
-          decorationColor: Theme.of(context).primaryColor,
-          fontWeight: FontWeight.w600,
-        ),
-        recognizer: TapGestureRecognizer()
-          ..onTap = () => _showCharacterPeekOverlay(context, span),
-      ));
-
-      currentIndex = span.endIndex;
-    }
-
-    // Add remaining non-clickable text
-    if (currentIndex < text.length) {
-      final remainingText = text.substring(currentIndex);
-      textSpans.add(TextSpan(text: remainingText));
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          height: 1.6, // Line height for readability
-        ),
-        children: textSpans,
-      ),
-    );
-  }
-
-  void _showCharacterPeekOverlay(BuildContext context, ClickableCharacterSpan span) {
-    debugPrint('🎯 Character tapped: ${span.character.name}');
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => CharacterPeekOverlay(
-        tappedCharacter: span.character,
-        allAvailableCharacters: peekAvailable,
-        storyId: storyId,
-        turnNumber: turnNumber,
-        playRequest: playRequest,
-        playthroughId: playthroughId,
-      ),
-    );
   }
 }

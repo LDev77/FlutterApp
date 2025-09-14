@@ -7,47 +7,31 @@ class CharacterNameParser {
     String narrativeText,
     List<Peek> peekAvailable,
   ) {
-    print('DEBUG PEEK: parseCharacterNames called with ${peekAvailable.length} available peeks');
-    for (final peek in peekAvailable) {
-      print('DEBUG PEEK: Available character: "${peek.name}"');
-    }
-
     if (peekAvailable.isEmpty || narrativeText.isEmpty) {
-      print('DEBUG PEEK: Early return - empty data (peekAvailable: ${peekAvailable.length}, narrativeText: ${narrativeText.length})');
       return [];
     }
-
-    print('DEBUG PEEK: Narrative text excerpt: "${narrativeText.length > 100 ? narrativeText.substring(0, 100) + "..." : narrativeText}"');
 
     final List<ClickableCharacterSpan> clickableSpans = [];
 
     for (final peek in peekAvailable) {
       final characterName = peek.name;
-      print('DEBUG PEEK: Searching for character "${characterName}" in narrative');
 
       // Find the first occurrence of this character name in the narrative
       final nameMatch = _findFirstNameOccurrence(narrativeText, characterName);
 
       if (nameMatch != null) {
-        print('DEBUG PEEK: ✅ Found "${characterName}" at position ${nameMatch.startIndex}-${nameMatch.endIndex} (text: "${nameMatch.displayText}")');
         clickableSpans.add(ClickableCharacterSpan(
           character: peek,
           startIndex: nameMatch.startIndex,
           endIndex: nameMatch.endIndex,
           displayText: nameMatch.displayText,
         ));
-      } else {
-        print('DEBUG PEEK: ❌ "${characterName}" not found in narrative');
       }
     }
 
     // Sort by position in text to ensure proper rendering order
     clickableSpans.sort((a, b) => a.startIndex.compareTo(b.startIndex));
 
-    print('DEBUG PEEK: Final result: ${clickableSpans.length} clickable spans found');
-    for (final span in clickableSpans) {
-      print('DEBUG PEEK: Clickable span: ${span.toString()}');
-    }
 
     return clickableSpans;
   }
@@ -90,25 +74,18 @@ class CharacterNameParser {
   /// Find a specific name in the text, ensuring word boundaries
   static NameMatch? _findNameInText(String lowerText, String originalText, String name) {
     final lowerName = name.toLowerCase();
-    print('DEBUG PEEK: _findNameInText searching for "${lowerName}" in text');
-
     // Find all occurrences with word boundaries
     final pattern = RegExp(r'\b' + RegExp.escape(lowerName) + r'\b');
-    print('DEBUG PEEK: Using regex pattern: ${pattern.pattern}');
-
     final match = pattern.firstMatch(lowerText);
 
     if (match != null) {
       final matchedText = originalText.substring(match.start, match.end);
-      print('DEBUG PEEK: ✅ Regex match found at ${match.start}-${match.end}: "${matchedText}"');
       // Return the match with the original casing from the text
       return NameMatch(
         startIndex: match.start,
         endIndex: match.end,
         displayText: matchedText,
       );
-    } else {
-      print('DEBUG PEEK: ❌ No regex match found for "${lowerName}"');
     }
 
     return null;

@@ -21,7 +21,8 @@
       "Bash(curl:*)",
       "Bash(gzip:*)",
       "Bash(cd:*)",
-      "Bash(del test_peek_serialization.dart)"
+      "Bash(del test_peek_serialization.dart)",
+      "Bash(move:*)"
     ],
     "deny": [],
     "ask": []
