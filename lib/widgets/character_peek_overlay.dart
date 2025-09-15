@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
+import 'package:flutter_3d_carousel/flutter_3d_carousel.dart';
 import '../models/api_models.dart';
 import '../services/character_name_parser.dart';
 import '../services/peek_service.dart';
@@ -33,11 +34,17 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
   Peek? _currentPeek;
   String? _errorMessage;
   List<Peek> _revealedCharacters = [];
+  int _currentCarouselIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _currentPeek = widget.tappedCharacter;
+    // Set initial carousel index to the tapped character
+    _currentCarouselIndex = widget.allAvailableCharacters.indexWhere(
+      (character) => character.name == widget.tappedCharacter.name,
+    );
+    if (_currentCarouselIndex == -1) _currentCarouselIndex = 0;
   }
 
   Future<void> _requestPeekData() async {
@@ -67,6 +74,11 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
         orElse: () => widget.tappedCharacter,
       );
 
+      // Update carousel index to match the current character
+      _currentCarouselIndex = _revealedCharacters.indexWhere(
+        (character) => character.name == updatedPeek.name,
+      );
+      if (_currentCarouselIndex == -1) _currentCarouselIndex = 0;
 
       setState(() {
         _currentPeek = updatedPeek;
@@ -93,9 +105,26 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
 
   /// Switch to viewing a different revealed character
   void _switchToCharacter(Peek character) {
+    final index = _revealedCharacters.indexWhere(
+      (c) => c.name == character.name,
+    );
     setState(() {
       _currentPeek = character;
+      if (index != -1) {
+        _currentCarouselIndex = index;
+      }
     });
+  }
+
+  /// Handle carousel value changes to switch characters
+  void _onCarouselChanged(double value) {
+    final index = value.round();
+    if (index >= 0 && index < _revealedCharacters.length) {
+      setState(() {
+        _currentCarouselIndex = index;
+        _currentPeek = _revealedCharacters[index];
+      });
+    }
   }
 
   /// Combine mind and thoughts into single markdown text with separator
@@ -257,45 +286,60 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                       ),
                     ),
 
-                    // Show other revealed characters if available
+                    // Show 3D carousel for character selection if multiple characters available
                     if (_revealedCharacters.length > 1) ...[
                       const SizedBox(height: 20),
                       Text(
-                        'Other revealed characters:',
+                        'Switch between revealed characters:',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: Theme.of(context).colorScheme.secondary,
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _revealedCharacters
-                            .where((character) => character.name != _currentPeek!.name)
-                            .map((character) => GestureDetector(
-                                  onTap: () => _switchToCharacter(character),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: Theme.of(context).primaryColor.withOpacity(0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      CharacterNameParser.getDisplayName(character.name),
-                                      style: TextStyle(
-                                        color: Theme.of(context).primaryColor,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 80,
+                        child: CarouselWidget3D(
+                          radius: MediaQuery.of(context).size.width * 0.4,
+                          childScale: 0.8,
+                          dragEndBehavior: DragEndBehavior.snapToNearest,
+                          isDragInteractive: true,
+                          clockwise: true,
+                          onValueChanged: _onCarouselChanged,
+                          children: _revealedCharacters.map((character) {
+                            final isSelected = character.name == _currentPeek!.name;
+                            return CarouselChild(
+                              child: GestureDetector(
+                                onTap: () => _switchToCharacter(character),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Theme.of(context).primaryColor
+                                        : Theme.of(context).primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Theme.of(context).primaryColor.withOpacity(0.3),
+                                      width: 1,
                                     ),
                                   ),
-                                ))
-                            .toList(),
+                                  child: Text(
+                                    CharacterNameParser.getDisplayName(character.name),
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Theme.of(context).primaryColor,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ],
                   ],

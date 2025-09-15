@@ -89,9 +89,13 @@ class TurnPageContent extends StatelessWidget {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.red, width: 1), // Debug border
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         // Blue box with user's previous input (if exists)
         if (turn.userInput.isNotEmpty && turn.userInput != '[Story Beginning]') ...[
           Container(
@@ -133,6 +137,7 @@ class TurnPageContent extends StatelessWidget {
           },
         ),
       ],
+      ),
     );
   }
 

@@ -648,66 +648,37 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
 
-  // For the last page with input controls - single scrollable container
+  // For the last page with input controls - flexbox style layout
   Widget _buildInteractiveContent(TurnData turn) {
     final hasContent = turn.narrativeMarkdown.isNotEmpty;
-    final fadeHeight = 20.0;
-    final bottomSpacing = 200; // Fixed spacing since no loading/error states here
 
-    return Stack(
+    return Column(
       children: [
-        // Scrollable content area (above input cluster)
+        // Expanded narrative content (takes remaining space, pushed up by input cluster)
         if (hasContent)
-          Positioned.fill(
-            bottom: bottomSpacing - fadeHeight,
+          Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
               physics: const ClampingScrollPhysics(),
               child: TurnPageContent(
-              turn: turn,
-              storyId: widget.story.id,
-              playthroughId: 'main',
-            ),
-            ),
-          ),
-        
-        // Fade to solid zone - gradient overlay at bottom of text area
-        if (hasContent)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: bottomSpacing - fadeHeight,
-            height: fadeHeight,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                    Theme.of(context).scaffoldBackgroundColor.withOpacity(1.0),
-                  ],
-                ),
+                turn: turn,
+                storyId: widget.story.id,
+                playthroughId: 'main',
               ),
             ),
           ),
-        
-        // Input cluster pinned to bottom (always show on interactive turns)
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: InputCluster(
-            turn: turn,
-            inputController: _inputController,
-            inputFocusNode: _inputFocusNode,
-            onSendInput: _handleSendInput,
-            onOptionsVisibilityChanged: (visible) {
-              setState(() {
-                _optionsVisible = visible;
-              });
-            },
-          ),
+
+        // Input cluster (grows naturally upward, pushes narrative up)
+        InputCluster(
+          turn: turn,
+          inputController: _inputController,
+          inputFocusNode: _inputFocusNode,
+          onSendInput: _handleSendInput,
+          onOptionsVisibilityChanged: (visible) {
+            setState(() {
+              _optionsVisible = visible;
+            });
+          },
         ),
       ],
     );

@@ -96,6 +96,8 @@ class _InputClusterState extends State<InputCluster> {
   bool _hasInputText = false; // Track if input field has content
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
+  int _characterCount = 0;
+  bool _isFocused = false;
 
   // Spell check functionality
   SpellCheck? _spellCheck;
@@ -189,17 +191,24 @@ class _InputClusterState extends State<InputCluster> {
   @override
   void initState() {
     super.initState();
-    // Hide options when text field is focused
+    // Hide options when text field is focused and track focus state
     widget.inputFocusNode.addListener(() {
-      if (widget.inputFocusNode.hasFocus && _showOptions) {
+      final hasFocus = widget.inputFocusNode.hasFocus;
+      if (hasFocus && _showOptions) {
         setState(() {
           _showOptions = false;
+        });
+      }
+      if (_isFocused != hasFocus) {
+        setState(() {
+          _isFocused = hasFocus;
         });
       }
     });
 
     // Initialize input state based on existing text
     _hasInputText = widget.inputController.text.trim().isNotEmpty;
+    _characterCount = widget.inputController.text.length;
 
     // Listen for layout changes to update height
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -278,35 +287,68 @@ class _InputClusterState extends State<InputCluster> {
   double _calculatePopupOffset() {
     if (_inputClusterKey.currentContext != null) {
       final RenderBox clusterBox = _inputClusterKey.currentContext!.findRenderObject() as RenderBox;
-      
+
       // Calculate popup height
       final double popupHeight = (widget.turn.availableOptions.length * 70.0) + 16; // 70px per option + padding
-      
+
       // The text field is positioned 16px from the top of the cluster (padding)
       // Position popup so its bottom touches the top of the input cluster
       return -16 - popupHeight;
     }
-    
+
     // Fallback calculation
     return -(widget.turn.availableOptions.length * 70.0) - 32; // Default offset with some padding
   }
 
+  /// Get border color based on focus state and character count
+  Color _getInputBorderColor() {
+    if (_characterCount >= 500) return Colors.red;
+    if (_characterCount >= 450) return Colors.orange;
+    if (_isFocused) return Colors.purple; // Magenta when focused
+    return Theme.of(context).dividerColor.withOpacity(0.3); // Gray when inactive
+  }
+
+  /// Get character counter color based on count
+  Color _getCounterTextColor() {
+    if (_characterCount >= 500) return Colors.red;
+    if (_characterCount >= 450) return Colors.orange;
+    return Theme.of(context).colorScheme.onSurface.withOpacity(0.5);
+  }
+
   @override
   Widget build(BuildContext context) {
+    const fadeHeight = 20.0;
+
     return Stack(
-      clipBehavior: Clip.none,
+      key: _inputClusterKey,
+      clipBehavior: Clip.none, // Allow overflow for fade strip and options
       children: [
-        // Main input cluster (fixed size, no expanding)
-        Container(
-          key: _inputClusterKey,
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            border: Border(
-              top: BorderSide(
-                color: Theme.of(context).dividerColor.withOpacity(0.3),
-                width: 1,
+        // External fade strip (positioned outside/above main container)
+        Positioned(
+          top: -fadeHeight, // Negative positioning - outside the main container
+          left: 0,
+          right: 0,
+          height: fadeHeight,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                  Theme.of(context).scaffoldBackgroundColor.withOpacity(1.0),
+                ],
               ),
+              border: Border.all(color: Colors.green, width: 1), // Green debug border
             ),
+          ),
+        ),
+
+        // Main cluster (solid background, blue debug border)
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor, // Solid background
+            border: Border.all(color: Colors.blue, width: 1), // Blue debug border
           ),
           child: SafeArea(
             top: false,
@@ -316,7 +358,22 @@ class _InputClusterState extends State<InputCluster> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Text input field - wrapped with CompositedTransformTarget for anchoring
+                  // Counter strip (collapsed when no text, expands naturally)
+                  if (_characterCount > 0)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 2, top: 2, right: 2),
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '$_characterCount/500',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: _getCounterTextColor(),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+
+                  // Input box - wrapped with CompositedTransformTarget for anchoring
                   CompositedTransformTarget(
                     link: _layerLink,
                     child: Container(
@@ -324,66 +381,69 @@ class _InputClusterState extends State<InputCluster> {
                         color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Theme.of(context).dividerColor.withOpacity(0.3),
+                          color: _getInputBorderColor(),
                           width: 1,
                         ),
                       ),
                       child: TextField(
-                      controller: widget.inputController,
-                      focusNode: widget.inputFocusNode,
-                      onChanged: (text) {
-                        // Update height when text changes (multiline growth)
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _updateInputClusterHeight();
-                        });
-                        // Track input state for send button styling
-                        setState(() {
-                          _hasInputText = text.trim().isNotEmpty;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Enter your own actions...',
-                        hintStyle: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                        controller: widget.inputController,
+                        focusNode: widget.inputFocusNode,
+                        maxLength: 500,
+                        onChanged: (text) {
+                          // Update height when text changes (multiline growth)
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _updateInputClusterHeight();
+                          });
+                          // Track input state for send button styling and character count
+                          setState(() {
+                            _hasInputText = text.trim().isNotEmpty;
+                            _characterCount = text.length;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Enter your own actions...',
+                          hintStyle: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.all(16),
+                          counterText: '', // Hide the default counter since we have our own
                         ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontSize: 16,
-                      ),
-                      maxLines: 4,
-                      minLines: 2,
-                      textCapitalization: TextCapitalization.sentences,
-                      spellCheckConfiguration: () {
-                        if (_spellCheckInitialized && _customSpellCheckService != null) {
-                          return SpellCheckConfiguration(
-                            spellCheckService: _customSpellCheckService,
-                            misspelledTextStyle: TextStyle(
-                              decoration: TextDecoration.underline,
-                              decorationColor: Colors.purple.withOpacity(0.8),
-                              decorationStyle: TextDecorationStyle.wavy,
-                              decorationThickness: 2,
-                            ),
-                          );
-                        } else {
-                          return const SpellCheckConfiguration.disabled();
-                        }
-                      }(),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 16,
+                        ),
+                        maxLines: 4,
+                        minLines: 2,
+                        textCapitalization: TextCapitalization.sentences,
+                        spellCheckConfiguration: () {
+                          if (_spellCheckInitialized && _customSpellCheckService != null) {
+                            return SpellCheckConfiguration(
+                              spellCheckService: _customSpellCheckService,
+                              misspelledTextStyle: TextStyle(
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.purple.withOpacity(0.8),
+                                decorationStyle: TextDecorationStyle.wavy,
+                                decorationThickness: 2,
+                              ),
+                            );
+                          } else {
+                            return const SpellCheckConfiguration.disabled();
+                          }
+                        }(),
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 12),
 
-                  // Button row: Options and Send
+                  // Bottom strip: Options and Send buttons
                   Row(
                     children: [
                       // Left margin for navigation caret space
-                      const SizedBox(width: 60), // Tightened spacing (70px + 10px margin -> 60px)
+                      const SizedBox(width: 60),
 
-                      // Options button (shortened on left side)
+                      // Options button
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
@@ -401,7 +461,7 @@ class _InputClusterState extends State<InputCluster> {
                               border: Border.all(
                                 color: _showOptions
                                     ? Colors.purple.withOpacity(0.3)
-                                    : Colors.purple.withOpacity(0.2), // Always show purple tint to indicate enabled
+                                    : Colors.purple.withOpacity(0.2),
                                 width: 1,
                               ),
                               borderRadius: BorderRadius.circular(12),
@@ -413,7 +473,7 @@ class _InputClusterState extends State<InputCluster> {
                                   _showOptions ? Icons.expand_less : Icons.expand_more,
                                   color: _showOptions
                                       ? Colors.purple
-                                      : Colors.purple.withOpacity(0.8), // Always show purple to indicate enabled
+                                      : Colors.purple.withOpacity(0.8),
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
@@ -422,7 +482,7 @@ class _InputClusterState extends State<InputCluster> {
                                   style: TextStyle(
                                     color: _showOptions
                                         ? Colors.purple
-                                        : Colors.purple.withOpacity(0.8), // Always show purple to indicate enabled
+                                        : Colors.purple.withOpacity(0.8),
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -435,9 +495,9 @@ class _InputClusterState extends State<InputCluster> {
 
                       const SizedBox(width: 12),
 
-                      // Send button (circular, same size as navigation carets)
+                      // Send button (circular)
                       GestureDetector(
-                        onTap: _hasInputText ? widget.onSendInput : null, // Disable when empty
+                        onTap: _hasInputText ? widget.onSendInput : null,
                         child: Container(
                           width: 50,
                           height: 50,
