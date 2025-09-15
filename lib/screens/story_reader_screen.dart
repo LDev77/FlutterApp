@@ -40,6 +40,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   // Smart hyperlink detection
   Timer? _nameScanTimer;
   bool _showHyperlinks = false; // Whether to show hyperlinks on current page
+  final Set<int> _processedPages = {}; // Track which pages have been processed for hyperlinks
 
   @override
   void initState() {

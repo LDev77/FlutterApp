@@ -5,6 +5,7 @@ import '../models/catalog/catalog_story.dart';
 import '../models/story.dart'; // Still needed for StoryReaderScreen compatibility
 import '../widgets/cached_cover_image.dart';
 import '../widgets/infinity_loading.dart';
+import '../widgets/smooth_scroll_behavior.dart';
 import '../services/catalog_service.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
@@ -83,195 +84,225 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // App bar with user tokens
-          SliverAppBar(
-            title: Text(
-              _catalog?.appTitle ?? 'Infiniteer',
-              style: TextStyle(
-                color: Theme.of(context).appBarTheme.foregroundColor,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-            backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-            pinned: true,  // Keep header always visible
-            actions: [
-              // Theme toggle button
-              AnimatedBuilder(
-                animation: ThemeService.instance,
-                builder: (context, child) {
-                  return IconButton(
-                    onPressed: ThemeService.instance.isTransitioning 
-                        ? null 
-                        : ThemeService.instance.toggleTheme,
-                    icon: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: Icon(
-                        ThemeService.instance.isDarkMode 
-                            ? Icons.light_mode 
-                            : Icons.dark_mode,
-                        key: ValueKey(ThemeService.instance.isDarkMode),
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                    tooltip: ThemeService.instance.isDarkMode 
-                        ? 'Switch to Light Mode' 
-                        : 'Switch to Dark Mode',
-                  );
-                },
-              ),
-              
-              // Token counter (tappable to buy more)
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InfiniteeriumPurchaseScreen(),
-                    ),
-                  ).then((_) {
-                    // Refresh token count when returning from purchase screen
-                    _loadUserTokens();
-                  });
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.purple, width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        CustomIcons.coin,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _userTokens > 0 ? '$_userTokens' : '--',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          
-          // Hero section
-          SliverToBoxAdapter(
+      body: Column(
+        children: [
+          // Fixed App bar with user tokens
+          Container(
+            padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+            color: Theme.of(context).appBarTheme.backgroundColor,
             child: Container(
-              height: 200,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.purple.shade700.withOpacity(0.9),
-                    Colors.blue.shade800.withOpacity(0.8),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
-                      ),
+              height: kToolbarHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    _catalog?.appTitle ?? 'Infiniteer',
+                    style: TextStyle(
+                      color: Theme.of(context).appBarTheme.foregroundColor,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      fontSize: 20,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                        height: 1.4,
+                  ),
+                  const Spacer(),
+
+                  // Theme toggle button
+                  AnimatedBuilder(
+                    animation: ThemeService.instance,
+                    builder: (context, child) {
+                      return IconButton(
+                        onPressed: ThemeService.instance.isTransitioning
+                            ? null
+                            : ThemeService.instance.toggleTheme,
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: Icon(
+                            ThemeService.instance.isDarkMode
+                                ? Icons.light_mode
+                                : Icons.dark_mode,
+                            key: ValueKey(ThemeService.instance.isDarkMode),
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        tooltip: ThemeService.instance.isDarkMode
+                            ? 'Switch to Light Mode'
+                            : 'Switch to Dark Mode',
+                      );
+                    },
+                  ),
+
+                  // Token counter (tappable to buy more)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const InfiniteeriumPurchaseScreen(),
+                        ),
+                      ).then((_) {
+                        // Refresh token count when returning from purchase screen
+                        _loadUserTokens();
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.purple, width: 1),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          
-          // Dynamic catalog content
-          _isLoading
-              ? const SliverToBoxAdapter(
-                  child: Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(50.0),
-                      child: InfinityLoading(
-                        size: 120,
-                        message: 'Creating your world...',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            CustomIcons.coin,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _userTokens > 0 ? '$_userTokens' : '--',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                )
-              : _errorMessage != null
-                  ? SliverToBoxAdapter(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(50.0),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.wifi_off,
-                                size: 64,
-                                color: Colors.orange.withOpacity(0.7),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.orange.shade700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: () => _loadCachedCatalog(),
-                                child: const Text('Retry'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildListDelegate([
-                        if (_catalog != null)
-                          ..._catalog!.genreRows.map((genreRow) => 
-                            _buildGenreSection(genreRow, heightPercentage: 0.50)
-                          ),
-                        const SizedBox(height: 100), // Bottom padding
-                      ]),
-                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Main content
+          Expanded(
+            child: _buildMainContent(),
+          ),
         ],
       ),
     );
   }
+
+  Widget _buildMainContent() {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(50.0),
+          child: InfinityLoading(
+            size: 120,
+            message: 'Creating your world...',
+          ),
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(50.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.wifi_off,
+                size: 64,
+                color: Colors.orange.withOpacity(0.7),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.orange.shade700,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => _loadCachedCatalog(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_catalog == null || _catalog!.genreRows.isEmpty) {
+      return const Center(child: Text('No content available'));
+    }
+
+    return ScrollConfiguration(
+      behavior: SilkyScrollBehavior(),
+      child: CustomScrollView(
+        slivers: [
+          // Hero Section
+          SliverToBoxAdapter(
+            child: _buildHeroSection(),
+          ),
+
+          // Genre Rows
+          ..._catalog!.genreRows.map((genreRow) =>
+            SliverToBoxAdapter(
+              child: _buildGenreSection(genreRow),
+            ),
+          ).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroSection() {
+    return Container(
+      height: 232, // 200 height + 16 padding top/bottom
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        height: 200,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.purple.shade700.withOpacity(0.9),
+              Colors.blue.shade800.withOpacity(0.8),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildGenreSection(GenreRow genreRow, {double heightPercentage = 0.50}) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -314,7 +345,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
           height: rowHeight,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
+            physics: HorizontalSnapScrollPhysics(
+              itemWidth: bookWidth + 24.0, // Book width + horizontal margins (12px each side)
+              screenWidth: MediaQuery.of(context).size.width,
+            ),
             itemCount: genreRow.stories.length + 2, // Add 2 for left and right blocks
             itemBuilder: (context, index) {
               if (index == 0) {
