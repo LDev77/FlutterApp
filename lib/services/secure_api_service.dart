@@ -6,7 +6,7 @@ import 'secure_auth_manager.dart';
 import '../models/api_models.dart';
 
 class SecureApiService {
-  static const String baseUrl = 'https://localhost:7161/api';
+  static const String baseUrl = 'https://infiniteer.azurewebsites.net/api';
   
   /// Make a story choice and advance the narrative (POST /play)
   static Future<PlayResponse> playStoryTurn(PlayRequest request) async {

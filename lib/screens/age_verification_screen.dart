@@ -33,13 +33,11 @@ class _AgeVerificationScreenState extends State<AgeVerificationScreen> {
         await IFEStateManager.saveTokens(account.tokenBalance);
         debugPrint('Account balance loaded: ${account.tokenBalance} tokens for user: $userId');
       } else {
-        debugPrint('No user ID found, using 0 tokens');
-        await IFEStateManager.saveTokens(0);
+        debugPrint('No user ID found, tokens remain unset');
       }
     } catch (e) {
       debugPrint('Failed to load account balance: $e');
-      // On error, use 0 tokens as fallback
-      await IFEStateManager.saveTokens(0);
+      // Don't set tokens to 0 on error - keep existing balance if any
     }
 
     setState(() {

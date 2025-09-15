@@ -60,15 +60,13 @@ Future<void> _initializeAppData() async {
       
       // Process catalog (it's now cached by CatalogService)
       debugPrint('✅ Catalog loaded during splash');
-      
+
     } else {
-      debugPrint('⚠️ No user ID found, using defaults');
-      await IFEStateManager.saveTokens(0);
+      debugPrint('⚠️ No user ID found, tokens remain unset');
     }
   } catch (e) {
     debugPrint('❌ Background initialization failed: $e');
-    // Fallback to 0 tokens on error
-    await IFEStateManager.saveTokens(0);
+    // Don't set tokens to 0 on error - keep existing balance if any
   }
 }
 

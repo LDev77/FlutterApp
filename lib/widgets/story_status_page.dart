@@ -74,7 +74,7 @@ class StoryStatusPage extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${IFEStateManager.getTokens()}',
+                          IFEStateManager.getTokensDisplay(),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurface,
                             fontWeight: FontWeight.bold,

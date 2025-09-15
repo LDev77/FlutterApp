@@ -114,7 +114,10 @@ class _InputClusterState extends State<InputCluster> {
 
   void _showOverlay() {
     if (_overlayEntry != null) return; // Already showing
-    
+
+    // Unfocus input field to dismiss keyboard and make room for options
+    widget.inputFocusNode.unfocus();
+
     _overlayEntry = OverlayEntry(
       builder: (context) => Stack(
         children: [

@@ -21,7 +21,7 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
-  int _userTokens = 0;
+  int? _userTokens;
   LibraryCatalog? _catalog;
   bool _isLoading = true;
   String? _errorMessage;
@@ -157,13 +157,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           Icon(
                             CustomIcons.coin,
                             size: 16,
-                            color: Theme.of(context).colorScheme.onSurface,
+                            color: Colors.purple,
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            _userTokens > 0 ? '$_userTokens' : '--',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
+                            _userTokens?.toString() ?? '--',
+                            style: const TextStyle(
+                              color: Colors.purple,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -262,41 +262,86 @@ class _LibraryScreenState extends State<LibraryScreen> {
       child: Container(
         height: 200,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.purple.shade700.withOpacity(0.9),
-              Colors.blue.shade800.withOpacity(0.8),
-            ],
-          ),
           borderRadius: BorderRadius.circular(16),
+          image: const DecorationImage(
+            image: AssetImage('assets/images/panaram.png'),
+            fit: BoxFit.cover,
+          ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.purple.shade700.withOpacity(0.8),
+                Colors.blue.shade800.withOpacity(0.7),
+                Colors.black.withOpacity(0.6),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Main title - flexible and responsive
+                Flexible(
+                  flex: 3,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(0, 1),
+                            blurRadius: 3.0,
+                            color: Colors.black54,
+                          ),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                  height: 1.4,
+                const SizedBox(height: 8),
+                // Subtitle - flexible and responsive
+                Flexible(
+                  flex: 2,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        height: 1.4,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(0, 1),
+                            blurRadius: 2.0,
+                            color: Colors.black54,
+                          ),
+                        ],
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

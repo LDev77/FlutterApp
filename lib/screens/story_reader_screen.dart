@@ -586,13 +586,13 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                         Icon(
                           CustomIcons.coin,
                           size: 16,
-                          color: Theme.of(context).colorScheme.onSurface,
+                          color: Colors.purple,
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${IFEStateManager.getTokens()}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
+                          IFEStateManager.getTokensDisplay(),
+                          style: const TextStyle(
+                            color: Colors.purple,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),

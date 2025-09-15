@@ -27,7 +27,7 @@ class CachedCoverImage extends StatelessWidget {
     // Prepend base URL if the image URL doesn't contain a domain
     String fullImageUrl = imageUrl;
     if (!imageUrl.startsWith('http') && !imageUrl.startsWith('https://')) {
-      fullImageUrl = 'https://localhost:7161/$imageUrl';
+      fullImageUrl = 'https://infiniteer.azurewebsites.net/$imageUrl';
     }
     
     Widget imageWidget;

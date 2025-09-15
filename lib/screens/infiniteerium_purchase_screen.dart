@@ -58,23 +58,12 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              CustomIcons.coin,
-              size: 28,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Infiniteerium',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-              ),
-            ),
-          ],
+        title: const Text(
+          'Infiniteerium',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
         centerTitle: true,
         elevation: 0,
@@ -139,12 +128,12 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                   children: [
                     Icon(
                       CustomIcons.coin,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.onSurface,
+                      size: 30,
+                      color: Colors.purple,
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '${IFEStateManager.getTokens()}',
+                      IFEStateManager.getTokensDisplay(),
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -197,7 +186,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                         child: Icon(
                           CustomIcons.coin,
                           size: 56,
-                          color: Theme.of(context).colorScheme.onSurface,
+                          color: Colors.purple,
                         ),
                       );
                     },
@@ -478,7 +467,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                 Icon(
                   CustomIcons.coin,
                   size: 16,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: Colors.purple,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -492,7 +481,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
             ),
             const SizedBox(height: 8),
             Text(
-              'New balance: ${IFEStateManager.getTokens()} tokens',
+              'New balance: ${IFEStateManager.getTokensDisplay()} tokens',
               style: TextStyle(
                 color: Colors.purple,
                 fontWeight: FontWeight.w600,

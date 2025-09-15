@@ -302,10 +302,15 @@ class IFEStateManager {
     final box = Hive.box(_tokenBoxName);
     await box.put('user_tokens', tokens);
   }
-  
-  static int getTokens() {
+
+  static int? getTokens() {
     final box = Hive.box(_tokenBoxName);
-    return box.get('user_tokens', defaultValue: 0);
+    return box.get('user_tokens');
+  }
+
+  static String getTokensDisplay() {
+    final tokens = getTokens();
+    return tokens?.toString() ?? '--';
   }
   
   // Story progress metadata
