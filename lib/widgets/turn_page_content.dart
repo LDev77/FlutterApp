@@ -89,11 +89,7 @@ class TurnPageContent extends StatelessWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.red, width: 1), // Debug border
-      ),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
         // Blue box with user's previous input (if exists)
@@ -137,7 +133,6 @@ class TurnPageContent extends StatelessWidget {
           },
         ),
       ],
-      ),
     );
   }
 

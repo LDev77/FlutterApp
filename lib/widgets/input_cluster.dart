@@ -339,7 +339,6 @@ class _InputClusterState extends State<InputCluster> {
                   Theme.of(context).scaffoldBackgroundColor.withOpacity(1.0),
                 ],
               ),
-              border: Border.all(color: Colors.green, width: 1), // Green debug border
             ),
           ),
         ),
@@ -348,7 +347,6 @@ class _InputClusterState extends State<InputCluster> {
         Container(
           decoration: BoxDecoration(
             color: Theme.of(context).scaffoldBackgroundColor, // Solid background
-            border: Border.all(color: Colors.blue, width: 1), // Blue debug border
           ),
           child: SafeArea(
             top: false,

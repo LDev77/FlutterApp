@@ -12,6 +12,7 @@ import '../services/state_manager.dart';
 import '../services/secure_api_service.dart';
 import '../services/global_play_service.dart';
 import '../services/catalog_service.dart';
+import '../services/peek_service.dart';
 import 'infiniteerium_purchase_screen.dart';
 import '../icons/custom_icons.dart';
 import 'dart:async';
@@ -35,6 +36,10 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   bool _optionsVisible = false;
+
+  // Smart hyperlink detection
+  Timer? _nameScanTimer;
+  bool _showHyperlinks = false; // Whether to show hyperlinks on current page
 
   @override
   void initState() {
@@ -85,6 +90,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
+        // Don't start timer immediately - let user settle on the page first
       });
       return; // Important: return early to avoid the API call path
     } else {
@@ -230,7 +236,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           PageView.builder(
             controller: _pageController,
             physics: const ClampingScrollPhysics(),
-            onPageChanged: (page) => setState(() => _currentPage = page),
+            onPageChanged: (page) {
+              _cancelNameScanTimer(); // Cancel any existing timer on navigation
+              setState(() => _currentPage = page);
+              _startNameScanTimer(); // Start new timer for the new page
+            },
             itemCount: _getTotalPageCount(),
             itemBuilder: (context, index) {
               if (index == 0) {
@@ -890,10 +900,64 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   void dispose() {
     // Unregister from global play service callbacks
     GlobalPlayService.unregisterCallback(widget.story.id, _onPlayComplete);
-    
+
+    _nameScanTimer?.cancel();
     _pageController.dispose();
     _inputController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Start smart name scanning timer (only if page has peekable characters)
+  void _startNameScanTimer() {
+    _nameScanTimer?.cancel(); // Cancel any existing timer
+
+    // Only process non-last pages that haven't been processed yet
+    if (_playthrough == null ||
+        _currentPage == _playthrough!.turnHistory.length || // Input page (last page)
+        _processedPages.contains(_currentPage)) {
+      return;
+    }
+
+    // Make sure we have a valid turn index
+    if (_currentPage < 1 || _currentPage > _playthrough!.turnHistory.length) {
+      return;
+    }
+
+    final turn = _playthrough!.turnHistory[_currentPage - 1]; // Convert to 0-indexed
+
+    // Only start timer if this page has peekable characters
+    if (turn.peekAvailable.isEmpty) {
+      return;
+    }
+
+    // Start 1.5 second timer
+    _nameScanTimer = Timer(const Duration(milliseconds: 1500), () {
+      _processNameHyperlinks();
+    });
+  }
+
+  /// Cancel the name scanning timer (called on navigation)
+  void _cancelNameScanTimer() {
+    _nameScanTimer?.cancel();
+    _nameScanTimer = null;
+  }
+
+  /// Process character names into hyperlinks for current page
+  void _processNameHyperlinks() {
+    if (_playthrough == null ||
+        _currentPage == _playthrough!.turnHistory.length || // Input page
+        _currentPage < 1) {
+      return;
+    }
+
+    // Mark this page as processed
+    _processedPages.add(_currentPage);
+
+    // Force rebuild to show hyperlinks
+    setState(() {
+      // The TurnPageContent widget will now use PeekableStoryText
+      // which automatically creates hyperlinks when peekAvailable is present
+    });
   }
 }
