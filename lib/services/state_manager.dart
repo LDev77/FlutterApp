@@ -45,7 +45,7 @@ class IFEStateManager {
     try {
       final jsonData = jsonEncode(turn.toJson());
       await box.put(key, jsonData);
-      print('DEBUG: Saved turn atomically - Key: "$key", JSON length: ${jsonData.length}');
+      // print('DEBUG: Saved turn atomically - Key: "$key", JSON length: ${jsonData.length}');
 
       // Ensure PlaythroughMetadata exists when we save turns
       await ensureDefaultPlaythrough(storyId);
@@ -69,7 +69,7 @@ class IFEStateManager {
       ..sort(); // Sort to ensure correct order
     
     final turns = <TurnData>[];
-    print('DEBUG: Found ${turnKeys.length} turn keys for $storyId/$playthroughId');
+    // print('DEBUG: Found ${turnKeys.length} turn keys for $storyId/$playthroughId');
     
     for (final key in turnKeys) {
       try {
@@ -78,7 +78,7 @@ class IFEStateManager {
           final turnMap = jsonDecode(turnJson) as Map<String, dynamic>;
           final turn = TurnData.fromJson(turnMap);
           turns.add(turn);
-          print('DEBUG: Loaded turn ${turn.turnNumber} successfully');
+          // print('DEBUG: Loaded turn ${turn.turnNumber} successfully');
         } else {
           print('WARNING: Turn key "$key" has null data');
         }
@@ -91,7 +91,7 @@ class IFEStateManager {
     // Sort by turn number to ensure correct order
     turns.sort((a, b) => a.turnNumber.compareTo(b.turnNumber));
     
-    print('DEBUG: Successfully loaded ${turns.length} turns for $storyId/$playthroughId');
+    // print('DEBUG: Successfully loaded ${turns.length} turns for $storyId/$playthroughId');
     return turns;
   }
   
@@ -533,7 +533,7 @@ class IFEStateManager {
       final jsonData = jsonEncode(updatedTurn.toJson());
       await box.put(key, jsonData);
 
-      print('DEBUG: Updated peek data for turn $turnNumber - Key: "$key", Peeks: ${peekData.length}');
+      // print('DEBUG: Updated peek data for turn $turnNumber - Key: "$key", Peeks: ${peekData.length}');
     } catch (e) {
       throw Exception('Failed to update peek data for turn $turnNumber in story $storyId: $e');
     }
@@ -567,15 +567,6 @@ class IFEStateManager {
     final box = Hive.box(_stateBoxName);
     final key = 'complete_story_${storyId}_state';
     await box.delete(key);
-  }
-
-  static Future<void> clearAllData() async {
-    await Hive.box(_stateBoxName).clear();
-    await Hive.box(_tokenBoxName).clear();
-    await Hive.box(_progressBoxName).clear();
-    await Hive.box<StoryMetadata>(_metadataBoxName).clear();
-    await Hive.box<PlaythroughMetadata>(_playthroughBoxName).clear();
-    await Hive.box(_turnsBoxName).clear();
   }
 }
 

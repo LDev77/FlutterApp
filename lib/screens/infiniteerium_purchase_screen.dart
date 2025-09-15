@@ -368,7 +368,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
               Icon(
                 Icons.security,
                 size: 16,
-                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                color: Colors.green,
               ),
               const SizedBox(width: 8),
               Expanded(

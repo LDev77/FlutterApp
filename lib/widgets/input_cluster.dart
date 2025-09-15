@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:spell_check_on_client/spell_check_on_client.dart';
 import '../models/turn_data.dart';
 import '../services/state_manager.dart';
+import '../styles/story_text_styles.dart';
 import 'infinity_loading.dart';
 import '../icons/custom_icons.dart';
 
@@ -363,10 +364,8 @@ class _InputClusterState extends State<InputCluster> {
                       alignment: Alignment.centerRight,
                       child: Text(
                         '$_characterCount/500',
-                        style: TextStyle(
-                          fontSize: 10,
+                        style: StoryTextStyles.turnMetadata.copyWith(
                           color: _getCounterTextColor(),
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -400,16 +399,15 @@ class _InputClusterState extends State<InputCluster> {
                         },
                         decoration: InputDecoration(
                           hintText: 'Enter your own actions...',
-                          hintStyle: TextStyle(
+                          hintStyle: StoryTextStyles.inputHint.copyWith(
                             color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
                           ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.all(16),
                           counterText: '', // Hide the default counter since we have our own
                         ),
-                        style: TextStyle(
+                        style: StoryTextStyles.userInput.copyWith(
                           color: Theme.of(context).colorScheme.onSurface,
-                          fontSize: 16,
                         ),
                         maxLines: 4,
                         minLines: 2,
@@ -478,11 +476,10 @@ class _InputClusterState extends State<InputCluster> {
                                 Text(
                                   '...or pick an option',
                                   style: TextStyle(
+                                    fontSize: 16, // Fixed font size, not scaled
                                     color: _showOptions
                                         ? Colors.purple
                                         : Colors.purple.withOpacity(0.8),
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -522,7 +519,7 @@ class _InputClusterState extends State<InputCluster> {
                             child: Icon(
                               CustomIcons.coin,
                               size: 20,
-                              color: Theme.of(context).colorScheme.onSurface,
+                              color: _hasInputText ? Colors.white : Colors.grey.shade600,
                             ),
                           ),
                         ),
@@ -564,17 +561,18 @@ class _InputClusterState extends State<InputCluster> {
             Expanded(
               child: Text(
                 option,
-                style: const TextStyle(
+                style: StoryTextStyles.choiceOption.copyWith(
                   color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            Icon(
-              CustomIcons.coin,
-              size: 16,
-              color: Theme.of(context).colorScheme.onSurface,
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Icon(
+                CustomIcons.coin,
+                size: 20,
+                color: Colors.white,
+              ),
             ),
           ],
         ),

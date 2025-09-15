@@ -2,14 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum StoryFontSize { small, regular, large }
+
 class ThemeService extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
+  static const String _fontSizeKey = 'story_font_size';
   ThemeMode _themeMode = ThemeMode.dark;
+  StoryFontSize _storyFontSize = StoryFontSize.regular;
   bool _isTransitioning = false;
 
   ThemeMode get themeMode => _themeMode;
   bool get isTransitioning => _isTransitioning;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
+
+  StoryFontSize get storyFontSize => _storyFontSize;
+  double get storyFontScale {
+    switch (_storyFontSize) {
+      case StoryFontSize.small:
+        return 0.85; // -15%
+      case StoryFontSize.large:
+        return 1.20; // +20%
+      case StoryFontSize.regular:
+      default:
+        return 1.0; // Regular size
+    }
+  }
 
   static ThemeService? _instance;
   static ThemeService get instance => _instance ??= ThemeService._();
@@ -19,16 +36,29 @@ class ThemeService extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Load theme mode
       final savedTheme = prefs.getString(_themeKey);
-      
       if (savedTheme != null && savedTheme.isNotEmpty) {
         final newThemeMode = savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light;
-        
         if (_themeMode != newThemeMode) {
           _themeMode = newThemeMode;
-          notifyListeners();
         }
       }
+
+      // Load font size
+      final savedFontSize = prefs.getString(_fontSizeKey);
+      if (savedFontSize != null && savedFontSize.isNotEmpty) {
+        final newFontSize = StoryFontSize.values.firstWhere(
+          (size) => size.name == savedFontSize,
+          orElse: () => StoryFontSize.regular,
+        );
+        if (_storyFontSize != newFontSize) {
+          _storyFontSize = newFontSize;
+        }
+      }
+
+      notifyListeners();
     } catch (e) {
       debugPrint('ThemeService: Error during initialization: $e');
     }
@@ -66,6 +96,23 @@ class ThemeService extends ChangeNotifier {
     // Allow new transitions after 1 second
     await Future.delayed(const Duration(milliseconds: 1000));
     _isTransitioning = false;
+    notifyListeners();
+  }
+
+  Future<void> setStoryFontSize(StoryFontSize fontSize) async {
+    if (_storyFontSize == fontSize) return;
+
+    _storyFontSize = fontSize;
+
+    // Save to local storage
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_fontSizeKey, fontSize.name);
+      debugPrint('ThemeService: Font size saved: ${fontSize.name} (scale: ${storyFontScale})');
+    } catch (e) {
+      debugPrint('ThemeService: Error saving font size: $e');
+    }
+
     notifyListeners();
   }
 

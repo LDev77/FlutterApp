@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/story.dart';
+import '../services/theme_service.dart';
+import '../styles/story_text_styles.dart';
 import 'optimized_image.dart';
 
 class CoverPage extends StatefulWidget {
@@ -40,10 +42,8 @@ class _CoverPageState extends State<CoverPage> {
   void _calculateTextOverflow() {
     final screenWidth = MediaQuery.of(context).size.width;
     
-    final textStyle = TextStyle(
+    final textStyle = StoryTextStyles.storyDescription.copyWith(
       color: Colors.white.withOpacity(0.9),
-      fontSize: 16,
-      height: 1.4,
     );
     
     // Test with maxLines to see if text gets cut off with ellipsis
@@ -62,7 +62,7 @@ class _CoverPageState extends State<CoverPage> {
     
     setState(() {
       _hasOverflow = textPainter.didExceedMaxLines;
-      print('DEBUG: _hasOverflow = $_hasOverflow, didExceedMaxLines = ${textPainter.didExceedMaxLines}');
+      // print('DEBUG: _hasOverflow = $_hasOverflow, didExceedMaxLines = ${textPainter.didExceedMaxLines}');
     });
   }
 
@@ -193,16 +193,19 @@ class _CoverPageState extends State<CoverPage> {
                     children: [
                       // Description text
                       Flexible(
-                        child: Text(
-                          widget.story.description,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 16,
-                            height: 1.4,
-                          ),
-                          textAlign: TextAlign.left,
-                          maxLines: _isExpanded ? null : 7, // No limit when expanded, 7 lines when collapsed
-                          overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis, // No overflow when expanded, ellipsis when collapsed
+                        child: AnimatedBuilder(
+                          animation: ThemeService.instance,
+                          builder: (context, child) {
+                            return Text(
+                              widget.story.description,
+                              style: StoryTextStyles.storyDescription.copyWith(
+                                color: Colors.white.withOpacity(0.9),
+                              ),
+                              textAlign: TextAlign.left,
+                              maxLines: _isExpanded ? null : 7, // No limit when expanded, 7 lines when collapsed
+                              overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis, // No overflow when expanded, ellipsis when collapsed
+                            );
+                          },
                         ),
                       ),
                       
@@ -217,13 +220,17 @@ class _CoverPageState extends State<CoverPage> {
                               Positioned(
                                 bottom: 0,
                                 right: 0,
-                                child: Text(
-                                  'Turn ${widget.currentTurn}',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                child: AnimatedBuilder(
+                                  animation: ThemeService.instance,
+                                  builder: (context, child) {
+                                    return Text(
+                                      'Turn ${widget.currentTurn}',
+                                      style: StoryTextStyles.turnMetadata.copyWith(
+                                        color: Colors.white70,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             

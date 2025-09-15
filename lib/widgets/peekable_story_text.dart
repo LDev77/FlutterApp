@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import '../models/api_models.dart';
 import '../services/character_name_parser.dart';
+import '../services/theme_service.dart';
 import 'character_peek_overlay.dart';
 
 /// Widget that renders story text with clickable character names
@@ -29,11 +30,21 @@ class PeekableStoryText extends StatelessWidget {
     // Always use MarkdownBlock for consistent rendering
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // If no peekable characters, use standard markdown rendering
+    // If no peekable characters, use standard markdown rendering with text scaling
     if (peekAvailable.isEmpty) {
-      return MarkdownBlock(
-        data: markdownText,
-        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+      return AnimatedBuilder(
+        animation: ThemeService.instance,
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(ThemeService.instance.storyFontScale),
+            ),
+            child: MarkdownBlock(
+              data: markdownText,
+              config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+            ),
+          );
+        },
       );
     }
 
@@ -43,23 +54,54 @@ class PeekableStoryText extends StatelessWidget {
       peekAvailable,
     );
 
-    // If no character names found in text, use standard rendering
+    // If no character names found in text, use standard rendering with text scaling
     if (clickableSpans.isEmpty) {
-      return MarkdownBlock(
-        data: markdownText,
-        config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+      return AnimatedBuilder(
+        animation: ThemeService.instance,
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(ThemeService.instance.storyFontScale),
+            ),
+            child: MarkdownBlock(
+              data: markdownText,
+              config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+            ),
+          );
+        },
       );
     }
 
     // Pre-process markdown to inject character links
     final processedMarkdown = _injectCharacterLinks(markdownText, clickableSpans);
 
-    // Create MarkdownBlock with custom LinkConfig for character clicking
-    final config = _createPeekLinkConfig(isDark, context);
-
-    return MarkdownBlock(
-      data: processedMarkdown,
-      config: config,
+    // Create MarkdownBlock with custom LinkConfig for character clicking and text scaling
+    return AnimatedBuilder(
+      animation: ThemeService.instance,
+      builder: (context, child) {
+        final config = MarkdownConfig(
+          configs: [
+            LinkConfig(
+              style: TextStyle(
+                color: Theme.of(context).primaryColor,
+                decoration: TextDecoration.underline,
+                decorationColor: Theme.of(context).primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+              onTap: (url) => _handleLinkTap(url, context),
+            ),
+          ],
+        );
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(ThemeService.instance.storyFontScale),
+          ),
+          child: MarkdownBlock(
+            data: processedMarkdown,
+            config: config,
+          ),
+        );
+      },
     );
   }
 
@@ -86,23 +128,6 @@ class PeekableStoryText extends StatelessWidget {
     return result;
   }
 
-  /// Create MarkdownConfig with custom LinkConfig for peek characters
-  MarkdownConfig _createPeekLinkConfig(bool isDark, BuildContext context) {
-    // Create custom config with LinkConfig for peek character styling
-    return MarkdownConfig(
-      configs: [
-        LinkConfig(
-          style: TextStyle(
-            color: Theme.of(context).primaryColor,
-            decoration: TextDecoration.underline,
-            decorationColor: Theme.of(context).primaryColor,
-            fontWeight: FontWeight.w600,
-          ),
-          onTap: (url) => _handleLinkTap(url, context),
-        ),
-      ],
-    );
-  }
 
   /// Handle link taps - peek:// for characters, regular URLs for web links
   void _handleLinkTap(String url, BuildContext context) {

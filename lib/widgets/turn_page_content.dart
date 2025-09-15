@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/turn_data.dart';
 import '../models/api_models.dart';
 import '../services/secure_auth_manager.dart';
+import '../styles/story_text_styles.dart';
 import 'streaming_story_text.dart';
 
 class TurnPageContent extends StatelessWidget {
@@ -49,9 +50,8 @@ class TurnPageContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       'System Message',
-                      style: TextStyle(
+                      style: StoryTextStyles.turnMetadata.copyWith(
                         color: Colors.orange.shade700,
-                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -60,9 +60,8 @@ class TurnPageContent extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   turn.narrativeMarkdown,
-                  style: TextStyle(
+                  style: StoryTextStyles.narrative.copyWith(
                     color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 16,
                   ),
                 ),
               ],
@@ -78,9 +77,8 @@ class TurnPageContent extends StatelessWidget {
             child: Text(
               'Please go back and adjust your input, then try again.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: StoryTextStyles.turnMetadata.copyWith(
                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                fontSize: 14,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -108,9 +106,8 @@ class TurnPageContent extends StatelessWidget {
             ),
             child: Text(
               turn.userInput,
-              style: TextStyle(
+              style: StoryTextStyles.userInput.copyWith(
                 color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 16,
                 fontStyle: FontStyle.italic,
               ),
             ),

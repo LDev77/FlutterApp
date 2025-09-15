@@ -126,7 +126,7 @@ class InfinityLoadingOverlay extends StatelessWidget {
               ],
             ),
             child: InfinityLoading.large(
-              message: message ?? 'Creating your world...',
+              message: message ?? 'Entering Your World',
             ),
           ),
         ),

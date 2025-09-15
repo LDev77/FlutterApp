@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/theme_service.dart';
 import '../services/story_storage_manager.dart';
+import '../styles/story_text_styles.dart';
 
 class StorySettingsOverlay extends StatefulWidget {
   final String storyId;
@@ -101,10 +102,104 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                       },
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
-                  // Section 2: Delete Last Turn
+
+                  // Section 2: Font Size
+                  _buildSection(
+                    'Text Size',
+                    child: Column(
+                      children: [
+                        AnimatedBuilder(
+                          animation: ThemeService.instance,
+                          builder: (context, child) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              child: Row(
+                                children: StoryFontSize.values.map((size) {
+                                  final isSelected = ThemeService.instance.storyFontSize == size;
+                                  return Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => ThemeService.instance.setStoryFontSize(size),
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                            ? Theme.of(context).primaryColor.withOpacity(0.1)
+                                            : Colors.transparent,
+                                          border: Border.all(
+                                            color: isSelected
+                                              ? Theme.of(context).primaryColor
+                                              : Theme.of(context).dividerColor.withOpacity(0.3),
+                                            width: isSelected ? 2 : 1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              _getFontSizeDisplayName(size),
+                                              style: TextStyle(
+                                                color: isSelected
+                                                  ? Theme.of(context).primaryColor
+                                                  : Theme.of(context).colorScheme.onSurface,
+                                                fontSize: 16,
+                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _getFontSizeDescription(size),
+                                              style: TextStyle(
+                                                color: Colors.grey.shade600,
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          },
+                        ),
+                        // Sample text
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor.withOpacity(0.3),
+                            ),
+                          ),
+                          child: AnimatedBuilder(
+                            animation: ThemeService.instance,
+                            builder: (context, child) {
+                              return Text(
+                                'Every story is unique. What will yours be?',
+                                style: StoryTextStyles.narrative.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                                textAlign: TextAlign.center,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Section 3: Delete Last Turn
                   _buildSection(
                     'Turn Management',
                     child: ListTile(
@@ -137,7 +232,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                   
                   const SizedBox(height: 16),
                   
-                  // Section 3: Delete Entire Playthrough
+                  // Section 4: Delete Entire Playthrough
                   _buildSection(
                     'Playthrough Management',
                     child: ListTile(
@@ -341,7 +436,29 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
       }
     }
   }
-  
+
+  String _getFontSizeDisplayName(StoryFontSize size) {
+    switch (size) {
+      case StoryFontSize.small:
+        return 'Smaller';
+      case StoryFontSize.regular:
+        return 'Standard';
+      case StoryFontSize.large:
+        return 'Larger';
+    }
+  }
+
+  String _getFontSizeDescription(StoryFontSize size) {
+    switch (size) {
+      case StoryFontSize.small:
+        return '15% smaller (-15%)';
+      case StoryFontSize.regular:
+        return 'Default size';
+      case StoryFontSize.large:
+        return '20% larger (+20%)';
+    }
+  }
+
   /// Show the settings overlay
   static void show(BuildContext context, String storyId, VoidCallback onSettingsChanged) {
     showDialog(

@@ -193,7 +193,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           padding: EdgeInsets.all(50.0),
           child: InfinityLoading(
             size: 120,
-            message: 'Creating your world...',
+            showMessage: false,
           ),
         ),
       );

@@ -541,7 +541,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                 Expanded(
                   child: Center(
                     child: Text(
-                      '${widget.story.title} (Turn ${turn.turnNumber})',
+                      '${widget.story.title} (${turn.turnNumber}/${_playthrough!.numberOfTurns})',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                         fontSize: 16,

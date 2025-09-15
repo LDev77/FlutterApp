@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import '../models/api_models.dart';
+import '../services/theme_service.dart';
 import 'peekable_story_text.dart';
 
 class StreamingStoryText extends StatelessWidget {
@@ -30,12 +31,12 @@ class StreamingStoryText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Debug: Always log what peek data we have
-    print('DEBUG PEEK: StreamingStoryText.build() called with ${peekAvailable.length} peeks, shouldAnimate: $shouldAnimate');
-    if (peekAvailable.isNotEmpty) {
-      for (final peek in peekAvailable) {
-        print('DEBUG PEEK: StreamingStoryText has peek data for: "${peek.name}" (mind: ${peek.mind != null ? "present" : "null"}, thoughts: ${peek.thoughts != null ? "present" : "null"})');
-      }
-    }
+    // print('DEBUG PEEK: StreamingStoryText.build() called with ${peekAvailable.length} peeks, shouldAnimate: $shouldAnimate');
+    // if (peekAvailable.isNotEmpty) {
+    //   for (final peek in peekAvailable) {
+    //     print('DEBUG PEEK: StreamingStoryText has peek data for: "${peek.name}" (mind: ${peek.mind != null ? "present" : "null"}, thoughts: ${peek.thoughts != null ? "present" : "null"})');
+    //   }
+    // }
 
     if (shouldAnimate) {
       return _AnimatedStoryText(
@@ -50,13 +51,13 @@ class StreamingStoryText extends StatelessWidget {
       );
     } else {
       // For history pages, use peekable text if peek data available
-      print('DEBUG PEEK: StreamingStoryText conditions - peekAvailable: ${peekAvailable.length}, storyId: $storyId, turnNumber: $turnNumber, playRequest: ${playRequest != null ? "present" : "null"}');
+      // print('DEBUG PEEK: StreamingStoryText conditions - peekAvailable: ${peekAvailable.length}, storyId: $storyId, turnNumber: $turnNumber, playRequest: ${playRequest != null ? "present" : "null"}');
 
       if (peekAvailable.isNotEmpty &&
           storyId != null &&
           turnNumber != null &&
           playRequest != null) {
-        print('DEBUG PEEK: StreamingStoryText using PeekableStoryText with ${peekAvailable.length} peeks');
+        // print('DEBUG PEEK: StreamingStoryText using PeekableStoryText with ${peekAvailable.length} peeks');
         return PeekableStoryText(
           markdownText: fullText,
           peekAvailable: peekAvailable,
@@ -66,11 +67,21 @@ class StreamingStoryText extends StatelessWidget {
           playthroughId: playthroughId ?? 'main',
         );
       } else {
-        // Fallback to standard markdown rendering
+        // Fallback to standard markdown rendering with text scaling
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        return MarkdownBlock(
-          data: fullText,
-          config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+        return AnimatedBuilder(
+          animation: ThemeService.instance,
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(ThemeService.instance.storyFontScale),
+              ),
+              child: MarkdownBlock(
+                data: fullText,
+                config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+              ),
+            );
+          },
         );
       }
     }
@@ -102,15 +113,15 @@ class _AnimatedStoryText extends StatefulWidget {
   State<_AnimatedStoryText> createState() => _AnimatedStoryTextState();
 }
 
-class _AnimatedStoryTextState extends State<_AnimatedStoryText> 
+class _AnimatedStoryTextState extends State<_AnimatedStoryText>
     with TickerProviderStateMixin {
-  
+
   List<String> _sentences = [];
   List<AnimationController> _controllers = [];
   List<Animation<double>> _fadeAnimations = [];
   List<Animation<Offset>> _slideAnimations = [];
   bool _isComplete = false;
-  
+
   @override
   void initState() {
     super.initState();
@@ -220,11 +231,21 @@ class _AnimatedStoryTextState extends State<_AnimatedStoryText>
                           playthroughId: widget.playthroughId,
                         );
                       } else {
-                        // Fallback to standard markdown rendering
+                        // Fallback to standard markdown rendering with text scaling
                         final isDark = Theme.of(context).brightness == Brightness.dark;
-                        return MarkdownBlock(
-                          data: sentence,
-                          config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+                        return AnimatedBuilder(
+                          animation: ThemeService.instance,
+                          builder: (context, child) {
+                            return MediaQuery(
+                              data: MediaQuery.of(context).copyWith(
+                                textScaler: TextScaler.linear(ThemeService.instance.storyFontScale),
+                              ),
+                              child: MarkdownBlock(
+                                data: sentence,
+                                config: isDark ? MarkdownConfig.darkConfig : MarkdownConfig.defaultConfig,
+                              ),
+                            );
+                          },
                         );
                       }
                     },
