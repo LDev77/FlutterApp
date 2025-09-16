@@ -145,24 +145,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      CustomIcons.coin,
-                      size: 30,
-                      color: Colors.purple,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      IFEStateManager.getTokensDisplay(),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple,
-                      ),
-                    ),
-                  ],
-                ),
+                _buildCurrentBalanceDisplay(),
                 const SizedBox(height: 2),
                 Text(
                   'tokens',
@@ -542,6 +525,31 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCurrentBalanceDisplay() {
+    final tokens = IFEStateManager.getTokens() ?? 0;
+    final isLowTokens = tokens < 5;
+    final tokenColor = isLowTokens ? Colors.orange : Colors.purple;
+
+    return Row(
+      children: [
+        Icon(
+          CustomIcons.coin,
+          size: 30,
+          color: tokenColor,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          IFEStateManager.getTokensDisplay(),
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: tokenColor,
+          ),
+        ),
+      ],
     );
   }
 }

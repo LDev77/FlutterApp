@@ -8,15 +8,14 @@ import '../widgets/turn_page_content.dart';
 import '../widgets/input_cluster.dart';
 import '../widgets/story_status_page.dart';
 import '../widgets/story_settings_overlay.dart';
+import '../widgets/story_header.dart';
 import '../services/state_manager.dart';
 import '../services/secure_api_service.dart';
 import '../services/global_play_service.dart';
 import '../services/catalog_service.dart';
 import '../services/peek_service.dart';
 import '../services/connectivity_service.dart';
-import 'infiniteerium_purchase_screen.dart';
 import 'info_modal_screen.dart';
-import '../icons/custom_icons.dart';
 import 'dart:async';
 
 class StoryReaderScreen extends StatefulWidget {
@@ -242,73 +241,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          '${widget.story.title} (${_currentPage}/${_playthrough!.numberOfTurns})',
-          style: const TextStyle(fontSize: 16),
-        ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _handleBackNavigation,
-        ),
-        actions: [
-          // Token balance button
-          GestureDetector(
-            onTap: () => _openPaymentScreen(context),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.purple, width: 1),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    CustomIcons.coin,
-                    size: 14,
-                    color: Colors.purple,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    IFEStateManager.getTokensDisplay(),
-                    style: const TextStyle(
-                      color: Colors.purple,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Settings book icon
-          IconButton(
-            onPressed: _openSettings,
-            icon: const Icon(Icons.menu_book),
-            tooltip: 'Story Settings',
-          ),
-          // Connectivity info button
-          AnimatedBuilder(
-            animation: ConnectivityService.instance,
-            builder: (context, child) {
-              final connectivity = ConnectivityService.instance;
-              return IconButton(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const InfoModalScreen(),
-                  );
-                },
-                icon: Icon(connectivity.statusIcon),
-                color: connectivity.statusColor,
-              );
-            },
-          ),
-        ],
+      appBar: StoryHeader(
+        story: widget.story,
+        currentPage: _currentPage,
+        totalTurns: _playthrough!.numberOfTurns,
+        onBack: _handleBackNavigation,
+        onSettings: _openSettings,
       ),
       body: GestureDetector(
         onTap: () {
@@ -872,14 +810,6 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     );
   }
 
-  void _openPaymentScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const InfiniteeriumPurchaseScreen(),
-      ),
-    );
-  }
   
   void _openSettings() {
     showDialog(

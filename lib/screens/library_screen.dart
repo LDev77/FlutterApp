@@ -11,10 +11,13 @@ import '../services/state_manager.dart';
 import '../services/theme_service.dart';
 import '../services/background_data_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/secure_api_service.dart';
+import '../services/secure_auth_manager.dart';
 import 'story_reader_screen.dart';
 import 'infiniteerium_purchase_screen.dart';
 import 'info_modal_screen.dart';
 import '../icons/custom_icons.dart';
+import 'dart:async';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -28,6 +31,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   LibraryCatalog? _catalog;
   bool _isLoading = false;
   String? _errorMessage;
+  Timer? _connectivityTimer;
+  bool _isFooterDismissed = false;
 
   @override
   void initState() {
@@ -38,11 +43,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
     // Listen for token balance updates
     IFEStateManager.tokenBalanceNotifier.addListener(_onTokenBalanceChanged);
+
+    // Listen for connectivity changes and start timer if disconnected
+    ConnectivityService.instance.addListener(_onConnectivityChanged);
+    _checkAndStartConnectivityTimer();
   }
 
   @override
   void dispose() {
     IFEStateManager.tokenBalanceNotifier.removeListener(_onTokenBalanceChanged);
+    ConnectivityService.instance.removeListener(_onConnectivityChanged);
+    _connectivityTimer?.cancel();
     super.dispose();
   }
 
@@ -193,7 +204,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
             color: Theme.of(context).appBarTheme.backgroundColor,
             child: Container(
-              height: kToolbarHeight,
+              height: kToolbarHeight * 0.85, // 15% smaller height
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
@@ -267,33 +278,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         _loadUserTokens();
                       });
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.purple.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.purple, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            CustomIcons.coin,
-                            size: 16,
-                            color: Colors.purple,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _userTokens?.toString() ?? '--',
-                            style: const TextStyle(
-                              color: Colors.purple,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: _buildTokenDisplay(),
                   ),
                 ],
               ),
@@ -304,6 +289,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           Expanded(
             child: _buildMainContent(),
           ),
+
+          // Footer disclaimer (only show if not dismissed)
+          if (!_isFooterDismissed) _buildDisclaimerFooter(),
         ],
       ),
     );
@@ -714,5 +702,170 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (tags.contains('Sci-Fi')) return 'Sci-Fi';
     if (tags.contains('Horror')) return 'Horror';
     return tags.isNotEmpty ? tags.first : 'General';
+  }
+
+  Widget _buildTokenDisplay() {
+    final tokens = _userTokens ?? 0;
+    final isLowTokens = tokens < 5;
+    final buttonColor = isLowTokens ? Colors.orange : Colors.purple;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: buttonColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: buttonColor, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            CustomIcons.coin,
+            size: 16,
+            color: buttonColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _userTokens?.toString() ?? '--',
+            style: TextStyle(
+              color: buttonColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onConnectivityChanged() {
+    _checkAndStartConnectivityTimer();
+  }
+
+  void _checkAndStartConnectivityTimer() {
+    if (!ConnectivityService.instance.isConnected) {
+      // Start timer if disconnected and not already running
+      if (_connectivityTimer == null || !_connectivityTimer!.isActive) {
+        debugPrint('📵 Starting connectivity recovery timer');
+        _connectivityTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
+          await _tryAccountReconnect();
+        });
+      }
+    } else {
+      // Stop timer if connected
+      if (_connectivityTimer != null) {
+        debugPrint('🌐 Stopping connectivity recovery timer (now connected)');
+        _connectivityTimer!.cancel();
+        _connectivityTimer = null;
+      }
+    }
+  }
+
+  Future<void> _tryAccountReconnect() async {
+    if (ConnectivityService.instance.isConnected) {
+      // Already connected, stop timer
+      _connectivityTimer?.cancel();
+      _connectivityTimer = null;
+      return;
+    }
+
+    debugPrint('🔄 Attempting account reconnect...');
+
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      await SecureApiService.getAccountInfo(userId);
+
+      // If we reach here, account call succeeded and connectivity is now marked connected
+      debugPrint('✅ Account reconnect successful, fetching catalog...');
+
+      // Now call catalog since we're connected
+      final catalog = await CatalogService.getCatalog();
+
+      // Get all story metadata and sort catalog by last played
+      final allMetadata = IFEStateManager.getAllStoryMetadata();
+      final sortedCatalog = catalog.sortStoriesByLastPlayed(allMetadata);
+
+      if (mounted) {
+        setState(() {
+          _catalog = sortedCatalog;
+          _errorMessage = null; // Clear any previous error
+        });
+      }
+
+      // Stop the timer since we're now connected
+      _connectivityTimer?.cancel();
+      _connectivityTimer = null;
+
+    } catch (e) {
+      debugPrint('❌ Account reconnect failed: $e');
+      // Timer will continue and try again in 1 minute
+    }
+  }
+
+  Widget _buildDisclaimerFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: GestureDetector(
+        onTap: _dismissFooter,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.purple.withOpacity(0.15), Colors.purple.withOpacity(0.08)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.purple.withOpacity(0.25), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.purple.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Close button
+              Positioned(
+                top: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: _dismissFooter,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: Colors.pink.shade300.withOpacity(0.8),
+                    ),
+                  ),
+                ),
+              ),
+              // Main text content
+              Padding(
+                padding: const EdgeInsets.only(right: 24), // Space for close button
+                child: Text(
+                  'All Infiniteer Interactive Fiction Experiences can be shaped by players into mature themes and topics. We advise restraint and staying true to appropriate role-play and especially staying clear of behavior prohibited in our terms and conditions, of which you agree by playing.',
+                  style: TextStyle(
+                    color: Colors.pink.shade300,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.left,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _dismissFooter() {
+    setState(() {
+      _isFooterDismissed = true;
+    });
   }
 }

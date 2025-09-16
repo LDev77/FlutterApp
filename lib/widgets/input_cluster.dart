@@ -7,6 +7,7 @@ import '../services/state_manager.dart';
 import '../styles/story_text_styles.dart';
 import 'infinity_loading.dart';
 import '../icons/custom_icons.dart';
+import '../screens/infiniteerium_purchase_screen.dart';
 
 // Custom spell check service that bridges spell_check_on_client with Flutter's native spell check
 class CustomSpellCheckService extends SpellCheckService {
@@ -495,12 +496,12 @@ class _InputClusterState extends State<InputCluster> {
 
                       // Send button (circular)
                       GestureDetector(
-                        onTap: _hasInputText ? widget.onSendInput : null,
+                        onTap: _canSendInput() ? widget.onSendInput : null,
                         child: Container(
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            gradient: _hasInputText
+                            gradient: _canSendInput()
                                 ? LinearGradient(
                                     colors: [Colors.purple, Colors.purple.shade600],
                                   )
@@ -508,7 +509,7 @@ class _InputClusterState extends State<InputCluster> {
                                     colors: [Colors.grey.shade400, Colors.grey.shade500],
                                   ),
                             borderRadius: BorderRadius.circular(25),
-                            boxShadow: _hasInputText
+                            boxShadow: _canSendInput()
                                 ? [
                                     BoxShadow(
                                       color: Colors.purple.withOpacity(0.3),
@@ -522,7 +523,7 @@ class _InputClusterState extends State<InputCluster> {
                             child: Icon(
                               CustomIcons.coin,
                               size: 20,
-                              color: _hasInputText ? Colors.white : Colors.grey.shade600,
+                              color: _canSendInput() ? Colors.white : Colors.grey.shade600,
                             ),
                           ),
                         ),
@@ -539,8 +540,6 @@ class _InputClusterState extends State<InputCluster> {
   }
 
   Widget _buildOptionButton(String option) {
-    const tokenCost = 1;
-
     return GestureDetector(
       onTap: () => _handleOptionSelect(option),
       child: Container(
@@ -584,6 +583,19 @@ class _InputClusterState extends State<InputCluster> {
   }
 
   void _handleOptionSelect(String option) {
+    final tokens = IFEStateManager.getTokens() ?? 0;
+
+    // If no tokens, redirect to purchase page instead of sending
+    if (tokens == 0) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const InfiniteeriumPurchaseScreen(),
+        ),
+      );
+      return;
+    }
+
     // Set the input field to the selected option
     widget.inputController.text = option;
 
@@ -595,6 +607,11 @@ class _InputClusterState extends State<InputCluster> {
 
     // Immediately send the selected option
     widget.onSendInput();
+  }
+
+  bool _canSendInput() {
+    final tokens = IFEStateManager.getTokens() ?? 0;
+    return _hasInputText && tokens > 0;
   }
 
   @override
