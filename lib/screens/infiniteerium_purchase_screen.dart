@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
+import '../services/connectivity_service.dart';
 import '../widgets/infinity_loading.dart';
 import '../icons/custom_icons.dart';
+import 'info_modal_screen.dart';
 
 class InfiniteeriumPurchaseScreen extends StatefulWidget {
   const InfiniteeriumPurchaseScreen({super.key});
@@ -68,6 +70,25 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         centerTitle: true,
         elevation: 0,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        actions: [
+          // Connectivity info button
+          AnimatedBuilder(
+            animation: ConnectivityService.instance,
+            builder: (context, child) {
+              final connectivity = ConnectivityService.instance;
+              return IconButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const InfoModalScreen(),
+                  );
+                },
+                icon: Icon(connectivity.statusIcon),
+                color: connectivity.statusColor,
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

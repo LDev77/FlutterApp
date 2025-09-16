@@ -51,8 +51,13 @@ class BackgroundDataService {
   static Future<void> _loadAccountInfo(String userId) async {
     try {
       final account = await SecureApiService.getAccountInfo(userId);
-      await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
-      debugPrint('✅ Background: Account loaded - ${account.tokenBalance} tokens, hash: ${account.accountHashCode}');
+      // Save account data if we got a valid response (0 tokens is valid!)
+      if (account.userId.isNotEmpty) {
+        await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
+        debugPrint('✅ Background: Account loaded - ${account.tokenBalance} tokens, hash: ${account.accountHashCode}');
+      } else {
+        debugPrint('❌ Background: Invalid account data received - userId empty');
+      }
     } catch (e) {
       debugPrint('❌ Background: Failed to load account info: $e');
       // Don't rethrow - other background tasks should continue

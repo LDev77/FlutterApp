@@ -23,7 +23,16 @@ class LibraryCatalog {
       headerSubtitle: json['headerSubtitle'] as String,
       welcomeMessage: json['welcomeMessage'] as String,
       genreRows: (json['genreRows'] as List)
-          .map((rowJson) => GenreRow.fromJson(rowJson as Map<String, dynamic>))
+          .map((rowJson) {
+            // Handle LinkedMap from Hive storage
+            if (rowJson is Map<String, dynamic>) {
+              return GenreRow.fromJson(rowJson);
+            } else if (rowJson is Map) {
+              return GenreRow.fromJson(Map<String, dynamic>.from(rowJson));
+            } else {
+              throw Exception('Invalid genreRow data type: ${rowJson.runtimeType}');
+            }
+          })
           .toList(),
       lastUpdated: DateTime.parse(json['lastUpdated'] as String),
     );

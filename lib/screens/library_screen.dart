@@ -26,7 +26,7 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   int? _userTokens;
   LibraryCatalog? _catalog;
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _errorMessage;
 
   @override
@@ -35,14 +35,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _loadUserTokens();
     _loadCachedCatalog();
     _checkBackgroundLoading();
+
+    // Listen for token balance updates
+    IFEStateManager.tokenBalanceNotifier.addListener(_onTokenBalanceChanged);
+  }
+
+  @override
+  void dispose() {
+    IFEStateManager.tokenBalanceNotifier.removeListener(_onTokenBalanceChanged);
+    super.dispose();
+  }
+
+  void _onTokenBalanceChanged() {
+    if (mounted) {
+      setState(() {
+        _userTokens = IFEStateManager.tokenBalanceNotifier.value;
+      });
+      debugPrint('🔔 Library screen received token balance signal: $_userTokens');
+    }
   }
 
   Future<void> _loadUserTokens() async {
     // Load tokens from local storage (may be null if not loaded yet)
+    final tokens = IFEStateManager.getTokens();
     setState(() {
-      _userTokens = IFEStateManager.getTokens();
+      _userTokens = tokens;
     });
-    debugPrint('Library screen loaded token balance: $_userTokens');
+    debugPrint('Library screen loaded token balance: $_userTokens (raw: $tokens)');
   }
 
   /// Check if background loading is in progress and listen for updates
@@ -50,20 +69,41 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (BackgroundDataService.isLoading) {
       debugPrint('Background loading in progress, will refresh when complete');
       _waitForBackgroundLoading();
+    } else if (BackgroundDataService.isInitialized) {
+      // Background loading already completed - only refresh catalog if needed
+      debugPrint('Background loading already completed');
+      if (_catalog == null) {
+        _refreshCatalogIfNeeded();
+      }
     }
   }
 
   /// Wait for background loading to complete and refresh data
   Future<void> _waitForBackgroundLoading() async {
-    // Poll until background loading is complete
-    while (BackgroundDataService.isLoading) {
+    // Poll until background loading is complete with timeout
+    int attempts = 0;
+    const maxAttempts = 60; // 30 second timeout (500ms * 60)
+
+    while (BackgroundDataService.isLoading && attempts < maxAttempts) {
       await Future.delayed(const Duration(milliseconds: 500));
+      attempts++;
     }
 
-    // Refresh data after background loading completes
-    debugPrint('Background loading complete, refreshing UI data');
-    _loadUserTokens();
-    _refreshCatalogIfNeeded();
+    if (attempts >= maxAttempts) {
+      debugPrint('❌ Background loading timeout after 30 seconds');
+      setState(() {
+        _errorMessage = 'Loading timeout - please refresh';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    // Background loading complete - token balance will be signaled automatically
+    debugPrint('✅ Background loading complete');
+    // Only refresh catalog if we don't have it yet
+    if (_catalog == null) {
+      _refreshCatalogIfNeeded();
+    }
   }
 
   /// Refresh catalog if background loading brought new data
@@ -95,12 +135,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
         });
         debugPrint('Library screen loaded catalog data with ${allMetadata.length} metadata entries');
       }).catchError((e) {
-        debugPrint('❌ No pre-cached catalog available: $e');
+        debugPrint('❌ Background catalog refresh failed: $e');
 
         setState(() {
+          // Always stop loading - we either have cached data or show empty state
+          _isLoading = false;
           if (_catalog == null) {
-            // Only show loading if we have absolutely nothing to show
-            _isLoading = false;
+            _errorMessage = 'Unable to load catalog';
           }
         });
       });
@@ -128,14 +169,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       } else {
         debugPrint('❌ No synchronous cached catalog found');
         setState(() {
-          _isLoading = true;
+          _isLoading = false;
           _errorMessage = null;
         });
       }
     } catch (e) {
       debugPrint('Error loading sync catalog: $e');
       setState(() {
-        _isLoading = true;
+        _isLoading = false;
         _errorMessage = null;
       });
     }
@@ -281,75 +322,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(50.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.wifi_off,
-                size: 64,
-                color: Colors.orange.withOpacity(0.7),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.orange.shade700,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => _loadCachedCatalog(),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    // Skip error message screen - let catalog render
 
-    if (_catalog == null || _catalog!.genreRows.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(50.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.auto_stories,
-                size: 64,
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Infiniteer',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Loading your story library...',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const CircularProgressIndicator(),
-            ],
-          ),
-        ),
-      );
-    }
+    // Skip rendering error state - let catalog render if it exists
 
     return ScrollConfiguration(
       behavior: SilkyScrollBehavior(),
@@ -361,17 +336,23 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
 
           // Genre Rows
-          ..._catalog!.genreRows.map((genreRow) =>
-            SliverToBoxAdapter(
+          ...(_catalog?.genreRows ?? []).map((genreRow) {
+            debugPrint('DEBUG: Rendering genre row: ${genreRow.genreTitle} with ${genreRow.stories.length} stories');
+            return SliverToBoxAdapter(
               child: _buildGenreSection(genreRow),
-            ),
-          ).toList(),
+            );
+          }).toList(),
         ],
       ),
     );
   }
 
   Widget _buildHeroSection() {
+    debugPrint('DEBUG: Building hero section - _catalog is: ${_catalog != null ? "NOT NULL" : "NULL"}');
+    if (_catalog != null) {
+      debugPrint('DEBUG: Catalog has ${_catalog!.genreRows.length} genre rows');
+      debugPrint('DEBUG: Catalog headerSubtitle: "${_catalog!.headerSubtitle}"');
+    }
     return Container(
       height: 232, // 200 height + 16 padding top/bottom
       padding: const EdgeInsets.all(16),
@@ -410,7 +391,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     width: double.infinity,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
+                      _catalog?.headerSubtitle ?? '',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 32,
@@ -437,7 +418,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     width: double.infinity,
                     alignment: Alignment.topLeft,
                     child: Text(
-                      _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories that adapt to your choices. Experience rich narratives with compelling characters in worlds limited only by imagination.',
+                      _catalog?.welcomeMessage ?? '',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,

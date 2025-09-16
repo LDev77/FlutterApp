@@ -13,7 +13,9 @@ import '../services/secure_api_service.dart';
 import '../services/global_play_service.dart';
 import '../services/catalog_service.dart';
 import '../services/peek_service.dart';
+import '../services/connectivity_service.dart';
 import 'infiniteerium_purchase_screen.dart';
+import 'info_modal_screen.dart';
 import '../icons/custom_icons.dart';
 import 'dart:async';
 
@@ -187,6 +189,25 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             icon: const Icon(Icons.arrow_back),
             onPressed: _handleBackNavigation,
           ),
+          actions: [
+            // Connectivity info button
+            AnimatedBuilder(
+              animation: ConnectivityService.instance,
+              builder: (context, child) {
+                final connectivity = ConnectivityService.instance;
+                return IconButton(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const InfoModalScreen(),
+                    );
+                  },
+                  icon: Icon(connectivity.statusIcon),
+                  color: connectivity.statusColor,
+                );
+              },
+            ),
+          ],
         ),
         body: Center(
           child: Column(
@@ -221,6 +242,74 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(
+          '${widget.story.title} (${_currentPage}/${_playthrough!.numberOfTurns})',
+          style: const TextStyle(fontSize: 16),
+        ),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _handleBackNavigation,
+        ),
+        actions: [
+          // Token balance button
+          GestureDetector(
+            onTap: () => _openPaymentScreen(context),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.purple, width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    CustomIcons.coin,
+                    size: 14,
+                    color: Colors.purple,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    IFEStateManager.getTokensDisplay(),
+                    style: const TextStyle(
+                      color: Colors.purple,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Settings book icon
+          IconButton(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.menu_book),
+            tooltip: 'Story Settings',
+          ),
+          // Connectivity info button
+          AnimatedBuilder(
+            animation: ConnectivityService.instance,
+            builder: (context, child) {
+              final connectivity = ConnectivityService.instance;
+              return IconButton(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const InfoModalScreen(),
+                  );
+                },
+                icon: Icon(connectivity.statusIcon),
+                color: connectivity.statusColor,
+              );
+            },
+          ),
+        ],
+      ),
       body: GestureDetector(
         onTap: () {
           // Close options if they're visible when tapping on background
@@ -515,95 +604,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     return SafeArea(
       child: Column(
         children: [
-          // Header with token count and page indicator
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Back button
-                GestureDetector(
-                  onTap: _handleBackNavigation,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Theme.of(context).colorScheme.onSurface,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                
-                // Spacer to center the story title with turn
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      '${widget.story.title} (${turn.turnNumber}/${_playthrough!.numberOfTurns})',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Settings gear icon
-                GestureDetector(
-                  onTap: () => _openSettings(),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      Icons.settings,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                      size: 20,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(width: 8),
-
-                // Token display - now tappable
-                GestureDetector(
-                  onTap: () => _openPaymentScreen(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.purple, width: 1),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          CustomIcons.coin,
-                          size: 16,
-                          color: Colors.purple,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          IFEStateManager.getTokensDisplay(),
-                          style: const TextStyle(
-                            color: Colors.purple,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Old header removed - now in AppBar
 
           // Main content area
           Expanded(

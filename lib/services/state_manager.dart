@@ -15,6 +15,9 @@ class IFEStateManager {
   static const String _playthroughBoxName = 'playthrough_metadata';
   static const String _turnsBoxName = 'story_turns';
   static const String _catalogBoxName = 'catalog_cache';
+
+  // Notifiers for UI updates
+  static final ValueNotifier<int?> tokenBalanceNotifier = ValueNotifier<int?>(null);
   
   static Future<void> initialize() async {
     await Hive.initFlutter();
@@ -304,6 +307,9 @@ class IFEStateManager {
   static Future<void> saveTokens(int tokens) async {
     final box = Hive.box(_tokenBoxName);
     await box.put('user_tokens', tokens);
+    // Signal UI that token balance changed
+    tokenBalanceNotifier.value = tokens;
+    debugPrint('🔔 Token balance updated and signaled: $tokens');
   }
 
   static int? getTokens() {
@@ -330,13 +336,16 @@ class IFEStateManager {
     final box = Hive.box(_tokenBoxName);
     await box.put('user_tokens', tokens);
     await box.put('account_hash_code', hashCode);
+    // Signal UI that token balance changed
+    tokenBalanceNotifier.value = tokens;
+    debugPrint('🔔 Account data saved and signaled: $tokens tokens, hash: $hashCode');
   }
 
   // Catalog management (persistent offline storage)
   static Future<void> saveCatalog(Map<String, dynamic> catalogData) async {
     final box = Hive.box(_catalogBoxName);
     final timestampedData = {
-      'catalog': catalogData,
+      'catalog': jsonEncode(catalogData), // Store as JSON string
       'timestamp': DateTime.now().toIso8601String(),
     };
     await box.put('catalog_data', timestampedData);
@@ -345,15 +354,23 @@ class IFEStateManager {
 
   static Map<String, dynamic>? getCatalog() {
     final box = Hive.box(_catalogBoxName);
-    final timestampedData = box.get('catalog_data') as Map<String, dynamic>?;
+    final rawData = box.get('catalog_data');
 
-    if (timestampedData != null) {
-      final catalogData = timestampedData['catalog'] as Map<String, dynamic>?;
+    if (rawData is Map) {
+      final timestampedData = Map<String, dynamic>.from(rawData);
+      final catalogJsonString = timestampedData['catalog'] as String?;
       final timestamp = timestampedData['timestamp'] as String?;
 
-      if (catalogData != null) {
-        debugPrint('📦 Loaded catalog from persistent storage (saved: $timestamp)');
-        return catalogData;
+      if (catalogJsonString != null) {
+        try {
+          // Parse JSON string back to Map
+          final catalogData = jsonDecode(catalogJsonString) as Map<String, dynamic>;
+          debugPrint('📦 Loaded catalog from persistent storage (saved: $timestamp)');
+          return catalogData;
+        } catch (e) {
+          debugPrint('📦 Failed to parse catalog JSON: $e');
+          return null;
+        }
       }
     }
 

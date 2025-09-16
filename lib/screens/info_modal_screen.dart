@@ -19,7 +19,7 @@ class InfoModalScreen extends StatelessWidget {
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          title: const Text('App Info'),
+          title: const Text('Infiniteer App Info'),
         ),
         body: SafeArea(
           child: Padding(
@@ -43,11 +43,13 @@ class InfoModalScreen extends StatelessWidget {
                             size: 24,
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            connectivity.statusText,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: connectivity.statusColor,
-                              fontWeight: FontWeight.w600,
+                          Expanded(
+                            child: Text(
+                              connectivity.statusText,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: connectivity.statusColor,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],

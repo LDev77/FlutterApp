@@ -192,9 +192,10 @@ class AccountResponse {
 
   factory AccountResponse.fromJson(Map<String, dynamic> json) {
     return AccountResponse(
-      userId: json['userId'] as String,
-      tokenBalance: json['tokenBalance'] as int,
-      accountHashCode: json['hashCode'] as String,
+      userId: json['userId'] as String? ?? '',
+      tokenBalance: json['tokenBalance'] as int? ?? 0,
+      // Backend returns 'platformId' but we'll use it as accountHashCode for now
+      accountHashCode: json['platformId'] as String? ?? json['hashCode'] as String? ?? '',
     );
   }
 

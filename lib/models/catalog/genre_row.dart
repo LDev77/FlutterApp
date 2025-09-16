@@ -16,7 +16,16 @@ class GenreRow {
       genreTitle: json['genreTitle'] as String,
       subtitle: json['subtitle'] as String,
       stories: (json['stories'] as List)
-          .map((storyJson) => CatalogStory.fromJson(storyJson as Map<String, dynamic>))
+          .map((storyJson) {
+            // Handle LinkedMap from Hive storage
+            if (storyJson is Map<String, dynamic>) {
+              return CatalogStory.fromJson(storyJson);
+            } else if (storyJson is Map) {
+              return CatalogStory.fromJson(Map<String, dynamic>.from(storyJson));
+            } else {
+              throw Exception('Invalid story data type: ${storyJson.runtimeType}');
+            }
+          })
           .toList(),
     );
   }

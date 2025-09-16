@@ -41,25 +41,32 @@ class SecureApiService {
 
         debugPrint('Story turn processed successfully for user: ${request.userId.substring(0, 8)}...');
         return playResponse;
-      } else if (response.statusCode == 400) {
-        // Handle specific errors like insufficient tokens
-        final errorData = jsonDecode(response.body) as Map<String, dynamic>;
-        throw InsufficientTokensException(errorData['message'] ?? 'Insufficient tokens');
-      } else if (response.statusCode == 401) {
-        throw UnauthorizedException('Invalid or expired user ID');
-      } else if (response.statusCode == 408 || response.statusCode == 429 || response.statusCode >= 500) {
-        throw ServerBusyException('Looks like Infiniteer may be busy generating worlds. Try again soon. You were not charged a token.');
       } else {
-        throw Exception('Connection issue. Please retry in a bit.');
+        // Mark as disconnected for any non-2xx response (400-500, etc.)
+        ConnectivityService.instance.markDisconnected();
+
+        if (response.statusCode == 400) {
+          // Handle specific errors like insufficient tokens
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+          throw InsufficientTokensException(errorData['message'] ?? 'Insufficient tokens');
+        } else if (response.statusCode == 401) {
+          throw UnauthorizedException('Invalid or expired user ID');
+        } else if (response.statusCode == 408 || response.statusCode == 429 || response.statusCode >= 500) {
+          throw ServerBusyException('Looks like Infiniteer may be busy generating worlds. Try again soon. You were not charged a token.');
+        } else {
+          throw Exception('Connection issue. Please retry in a bit.');
+        }
       }
     } on TimeoutException {
+      ConnectivityService.instance.markDisconnected();
       throw ServerBusyException('Looks like Infiniteer may be busy generating worlds. Try again soon. You were not charged a token.');
     } catch (e) {
       // Check if this is a connection error (not server error)
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection timed out') ||
-          e.toString().contains('No address associated with hostname')) {
+          e.toString().contains('No address associated with hostname') ||
+          e.toString().contains('ClientException: Failed to fetch')) {
         ConnectivityService.instance.markDisconnected();
       }
 
@@ -99,7 +106,8 @@ class SecureApiService {
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection timed out') ||
-          e.toString().contains('No address associated with hostname')) {
+          e.toString().contains('No address associated with hostname') ||
+          e.toString().contains('ClientException: Failed to fetch')) {
         ConnectivityService.instance.markDisconnected();
       }
 
@@ -128,17 +136,23 @@ class SecureApiService {
         final catalogData = jsonDecode(response.body) as Map<String, dynamic>;
         debugPrint('Catalog loaded from API for user: ${userId.substring(0, 8)}...');
         return catalogData;
-      } else if (response.statusCode == 401) {
-        throw UnauthorizedException('Invalid or expired user ID');
       } else {
-        throw Exception('Connection issue. Please retry in a bit.');
+        // Mark as disconnected for any non-2xx response
+        ConnectivityService.instance.markDisconnected();
+
+        if (response.statusCode == 401) {
+          throw UnauthorizedException('Invalid or expired user ID');
+        } else {
+          throw Exception('Connection issue. Please retry in a bit.');
+        }
       }
     } catch (e) {
       // Check if this is a connection error (not server error)
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection timed out') ||
-          e.toString().contains('No address associated with hostname')) {
+          e.toString().contains('No address associated with hostname') ||
+          e.toString().contains('ClientException: Failed to fetch')) {
         ConnectivityService.instance.markDisconnected();
       }
 
@@ -169,17 +183,25 @@ class SecureApiService {
         final accountType = response.statusCode == 201 ? 'new' : 'existing';
         debugPrint('Account info loaded ($accountType) for user: ${userId.substring(0, 8)}... with ${account.tokenBalance} tokens, hash: ${account.accountHashCode}');
         return account;
-      } else if (response.statusCode == 401) {
-        throw UnauthorizedException('Invalid or expired user ID');
       } else {
-        throw Exception('Connection issue. Please retry in a bit.');
+        // Mark as disconnected for any non-2xx response
+        ConnectivityService.instance.markDisconnected();
+
+        if (response.statusCode == 401) {
+          throw UnauthorizedException('Invalid or expired user ID');
+        } else {
+          throw Exception('Connection issue. Please retry in a bit.');
+        }
       }
     } catch (e) {
+      debugPrint('DEBUG: Account API error caught: $e');
       // Check if this is a connection error (not server error)
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection timed out') ||
-          e.toString().contains('No address associated with hostname')) {
+          e.toString().contains('No address associated with hostname') ||
+          e.toString().contains('ClientException: Failed to fetch')) {
+        debugPrint('DEBUG: Marking as disconnected due to network error');
         ConnectivityService.instance.markDisconnected();
       }
 
@@ -247,7 +269,8 @@ class SecureApiService {
       if (e.toString().contains('SocketException') ||
           e.toString().contains('Connection refused') ||
           e.toString().contains('Connection timed out') ||
-          e.toString().contains('No address associated with hostname')) {
+          e.toString().contains('No address associated with hostname') ||
+          e.toString().contains('ClientException: Failed to fetch')) {
         ConnectivityService.instance.markDisconnected();
       }
 

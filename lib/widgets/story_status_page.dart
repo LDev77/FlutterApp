@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/story_metadata.dart';
-import '../services/state_manager.dart';
-import '../screens/infiniteerium_purchase_screen.dart';
 import 'infinity_loading.dart';
-import '../icons/custom_icons.dart';
 
 class StoryStatusPage extends StatelessWidget {
   final StoryMetadata metadata;
@@ -20,81 +17,7 @@ class StoryStatusPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Column(
-        children: [
-          // Header with token count and status indicator
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Theme.of(context).colorScheme.onSurface,
-                      size: 20,
-                    ),
-                  ),
-                ),
-
-                // Status indicator instead of "Turn N"
-                Text(
-                  _getStatusDisplayText(metadata.status ?? 'ready'),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-
-                // Token display - now tappable
-                GestureDetector(
-                  onTap: () => _openPaymentScreen(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.purple, width: 1),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          CustomIcons.coin,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          IFEStateManager.getTokensDisplay(),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Main content area
-          Expanded(
-            child: _buildStatusContent(context),
-          ),
-        ],
-      ),
+      child: _buildStatusContent(context),
     );
   }
 
@@ -247,12 +170,4 @@ class StoryStatusPage extends StatelessWidget {
     }
   }
 
-  void _openPaymentScreen(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const InfiniteeriumPurchaseScreen(),
-      ),
-    );
-  }
 }
