@@ -124,41 +124,6 @@ class CachedCoverImage extends StatelessWidget {
       children: [
         imageWidget,
         
-        // Progress indicator (bottom)
-        if (hasProgress)
-          Positioned(
-            bottom: 8,
-            left: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    metadata!.isCompleted ? Icons.check_circle : Icons.play_arrow,
-                    color: metadata!.isCompleted ? Colors.green : Colors.purple,
-                    size: 14,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    metadata!.isCompleted 
-                        ? 'Completed'
-                        : '${metadata!.currentTurn} Turns',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         
         // Recent badge (top right)
         if (isRecent && !metadata!.isCompleted)

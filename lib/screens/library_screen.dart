@@ -219,27 +219,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   const Spacer(),
 
-                  // Connectivity info button
-                  AnimatedBuilder(
-                    animation: ConnectivityService.instance,
-                    builder: (context, child) {
-                      final connectivity = ConnectivityService.instance;
-                      return IconButton(
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) => const InfoModalScreen(),
-                          );
-                        },
-                        icon: Icon(
-                          connectivity.statusIcon,
-                          color: connectivity.statusColor,
-                        ),
-                        tooltip: 'App Info',
-                      );
-                    },
-                  ),
-
                   // Theme toggle button
                   AnimatedBuilder(
                     animation: ThemeService.instance,
@@ -279,6 +258,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       });
                     },
                     child: _buildTokenDisplay(),
+                  ),
+
+                  // Connectivity info button
+                  AnimatedBuilder(
+                    animation: ConnectivityService.instance,
+                    builder: (context, child) {
+                      final connectivity = ConnectivityService.instance;
+                      return IconButton(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => const InfoModalScreen(),
+                          );
+                        },
+                        icon: Icon(
+                          connectivity.statusIcon,
+                          color: connectivity.statusColor,
+                        ),
+                        tooltip: 'App Info',
+                      );
+                    },
                   ),
                 ],
               ),
@@ -342,8 +342,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       debugPrint('DEBUG: Catalog headerSubtitle: "${_catalog!.headerSubtitle}"');
     }
     return Container(
-      height: 232, // 200 height + 16 padding top/bottom
-      padding: const EdgeInsets.all(16),
+      height: 216, // 200 height + 16 padding left/right/bottom only
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Container(
         height: 200,
         decoration: BoxDecoration(
@@ -601,30 +601,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      metadata?.currentTurn != null && metadata!.currentTurn > 0 ? Icons.play_circle_filled : Icons.play_circle_outline,
-                                      color: Colors.purple,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      metadata?.currentTurn != null && metadata!.currentTurn > 0 ? 'Continue Turn ${metadata!.currentTurn}' : 'Experience',
-                                      style: const TextStyle(
-                                        color: Colors.purple,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
                             ),
                           ],
                         ),

@@ -115,26 +115,6 @@ class _CoverPageState extends State<CoverPage> {
               ),
             ),
 
-            // Close button
-            Positioned(
-              top: topPadding + 16,
-              left: 20,
-              child: GestureDetector(
-                onTap: widget.onClose,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_ios_new,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-            ),
 
             // Bottom-pinned expandable overlay - consistent positioning
             Positioned(
@@ -209,30 +189,12 @@ class _CoverPageState extends State<CoverPage> {
                         ),
                       ),
                       
-                      // Bottom row with Turn N and arrow
+                      // Bottom row with arrow only
                       Container(
                         height: 30,
                         margin: const EdgeInsets.only(top: 8),
                         child: Stack(
                           children: [
-                            // Turn N - always bottom right (only for existing stories)
-                            if (!widget.isNewStory)
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: AnimatedBuilder(
-                                  animation: ThemeService.instance,
-                                  builder: (context, child) {
-                                    return Text(
-                                      'Turn ${widget.currentTurn}',
-                                      style: StoryTextStyles.turnMetadata.copyWith(
-                                        color: Colors.white70,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
                             
                             // Arrow - center bottom (only if overflow)
                             if (_hasOverflow)
@@ -263,6 +225,50 @@ class _CoverPageState extends State<CoverPage> {
                 ),
               ),
             ),
+
+            // Fast-forward button - positioned as sibling, on top of overlay (only for existing stories)
+            if (!widget.isNewStory)
+              Positioned(
+                bottom: bottomPadding + 26, // Position above overlay bottom padding (4px lower)
+                right: 24, // Align with overlay padding
+                child: GestureDetector(
+                  onTap: widget.onContinue,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.purple, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Turn ${widget.currentTurn}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.fast_forward,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
     );

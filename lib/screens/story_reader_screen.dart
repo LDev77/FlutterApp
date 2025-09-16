@@ -16,7 +16,6 @@ import '../services/catalog_service.dart';
 import '../services/peek_service.dart';
 import '../services/connectivity_service.dart';
 import 'info_modal_screen.dart';
-import 'dart:async';
 
 class StoryReaderScreen extends StatefulWidget {
   final Story story;
@@ -38,10 +37,6 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   final FocusNode _inputFocusNode = FocusNode();
   bool _optionsVisible = false;
 
-  // Smart hyperlink detection
-  Timer? _nameScanTimer;
-  bool _showHyperlinks = false; // Whether to show hyperlinks on current page
-  final Set<int> _processedPages = {}; // Track which pages have been processed for hyperlinks
 
   @override
   void initState() {
@@ -92,7 +87,6 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
-        // Don't start timer immediately - let user settle on the page first
       });
       return; // Important: return early to avoid the API call path
     } else {
@@ -265,9 +259,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
             controller: _pageController,
             physics: const ClampingScrollPhysics(),
             onPageChanged: (page) {
-              _cancelNameScanTimer(); // Cancel any existing timer on navigation
               setState(() => _currentPage = page);
-              _startNameScanTimer(); // Start new timer for the new page
             },
             itemCount: _getTotalPageCount(),
             itemBuilder: (context, index) {
@@ -283,13 +275,9 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                     if (_playthrough!.turnHistory.isEmpty) {
                       await _initializeNewStory();
                     }
-                    // Navigate to the appropriate page
-                    final targetPage = _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.currentTurnIndex + 1;
-                    _pageController.animateToPage(
-                      targetPage,
-                      duration: const Duration(milliseconds: 600),
-                      curve: Curves.easeInOut,
-                    );
+                    // Navigate to the appropriate page (teleport instantly)
+                    final targetPage = _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.turnHistory.length;
+                    _pageController.jumpToPage(targetPage);
                   },
                   onClose: _handleBackNavigation,
                 );
@@ -833,63 +821,9 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     // Unregister from global play service callbacks
     GlobalPlayService.unregisterCallback(widget.story.id, _onPlayComplete);
 
-    _nameScanTimer?.cancel();
     _pageController.dispose();
     _inputController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
-  }
-
-  /// Start smart name scanning timer (only if page has peekable characters)
-  void _startNameScanTimer() {
-    _nameScanTimer?.cancel(); // Cancel any existing timer
-
-    // Only process non-last pages that haven't been processed yet
-    if (_playthrough == null ||
-        _currentPage == _playthrough!.turnHistory.length || // Input page (last page)
-        _processedPages.contains(_currentPage)) {
-      return;
-    }
-
-    // Make sure we have a valid turn index
-    if (_currentPage < 1 || _currentPage > _playthrough!.turnHistory.length) {
-      return;
-    }
-
-    final turn = _playthrough!.turnHistory[_currentPage - 1]; // Convert to 0-indexed
-
-    // Only start timer if this page has peekable characters
-    if (turn.peekAvailable.isEmpty) {
-      return;
-    }
-
-    // Start 1.5 second timer
-    _nameScanTimer = Timer(const Duration(milliseconds: 1500), () {
-      _processNameHyperlinks();
-    });
-  }
-
-  /// Cancel the name scanning timer (called on navigation)
-  void _cancelNameScanTimer() {
-    _nameScanTimer?.cancel();
-    _nameScanTimer = null;
-  }
-
-  /// Process character names into hyperlinks for current page
-  void _processNameHyperlinks() {
-    if (_playthrough == null ||
-        _currentPage == _playthrough!.turnHistory.length || // Input page
-        _currentPage < 1) {
-      return;
-    }
-
-    // Mark this page as processed
-    _processedPages.add(_currentPage);
-
-    // Force rebuild to show hyperlinks
-    setState(() {
-      // The TurnPageContent widget will now use PeekableStoryText
-      // which automatically creates hyperlinks when peekAvailable is present
-    });
   }
 }
