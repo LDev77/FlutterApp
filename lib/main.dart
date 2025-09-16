@@ -2,24 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'services/state_manager.dart';
 import 'services/theme_service.dart';
-import 'services/secure_api_service.dart';
-import 'services/secure_auth_manager.dart';
-import 'services/catalog_service.dart';
-import 'models/api_models.dart';
+import 'services/background_data_service.dart';
 import 'screens/library_screen.dart';
 import 'widgets/smooth_scroll_behavior.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize theme service FIRST (before any UI)
   await ThemeService.instance.initialize();
-  
+
   // Initialize storage
   await IFEStateManager.initialize();
-  
-  // Load app data during splash screen
-  await _initializeAppData();
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -37,38 +31,22 @@ void main() async {
     ),
   );
 
+  // Start app immediately - data will load in background
   runApp(const InfiniteerApp());
+
+  // Load data in background after app starts (non-blocking)
+  _startBackgroundDataLoading();
 }
 
-/// Initialize app data during splash screen
-Future<void> _initializeAppData() async {
-  try {
-    final userId = await SecureAuthManager.getUserId();
-    if (userId != null) {
-      debugPrint('🚀 Loading app data during splash for user: ${userId.substring(0, 8)}...');
-      
-      // Run API calls in parallel during splash screen
-      final futures = await Future.wait([
-        SecureApiService.getAccountInfo(userId),
-        CatalogService.getCatalog(), // Use CatalogService instead of direct API call
-      ]);
-      
-      // Process account balance
-      final account = futures[0] as AccountResponse;
-      await IFEStateManager.saveTokens(account.tokenBalance);
-      debugPrint('✅ Account balance loaded: ${account.tokenBalance} tokens');
-      
-      // Process catalog (it's now cached by CatalogService)
-      debugPrint('✅ Catalog loaded during splash');
+/// Start background data loading after app initialization
+void _startBackgroundDataLoading() async {
+  // Small delay to ensure app UI is fully initialized
+  await Future.delayed(const Duration(milliseconds: 100));
 
-    } else {
-      debugPrint('⚠️ No user ID found, tokens remain unset');
-    }
-  } catch (e) {
-    debugPrint('❌ Background initialization failed: $e');
-    // Don't set tokens to 0 on error - keep existing balance if any
-  }
+  debugPrint('🚀 Starting background data loading...');
+  BackgroundDataService.initialize();
 }
+
 
 class InfiniteerApp extends StatelessWidget {
   const InfiniteerApp({super.key});

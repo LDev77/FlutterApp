@@ -139,7 +139,6 @@ class TurnPageContent extends StatelessWidget {
 
     try {
       final userId = await SecureAuthManager.getUserId();
-      if (userId == null) return null;
 
       return PlayRequest(
         userId: userId,

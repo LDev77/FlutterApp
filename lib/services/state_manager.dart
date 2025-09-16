@@ -1,4 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import '../models/api_models.dart';
 import '../models/turn_data.dart';
@@ -13,6 +14,7 @@ class IFEStateManager {
   static const String _metadataBoxName = 'story_metadata';
   static const String _playthroughBoxName = 'playthrough_metadata';
   static const String _turnsBoxName = 'story_turns';
+  static const String _catalogBoxName = 'catalog_cache';
   
   static Future<void> initialize() async {
     await Hive.initFlutter();
@@ -31,6 +33,7 @@ class IFEStateManager {
     await Hive.openBox<StoryMetadata>(_metadataBoxName);
     await Hive.openBox<PlaythroughMetadata>(_playthroughBoxName);
     await Hive.openBox(_turnsBoxName);
+    await Hive.openBox(_catalogBoxName);
   }
   
 
@@ -297,7 +300,7 @@ class IFEStateManager {
     );
   }
   
-  // Token management
+  // Token and account management
   static Future<void> saveTokens(int tokens) async {
     final box = Hive.box(_tokenBoxName);
     await box.put('user_tokens', tokens);
@@ -312,7 +315,76 @@ class IFEStateManager {
     final tokens = getTokens();
     return tokens?.toString() ?? '--';
   }
-  
+
+  static Future<void> saveAccountHashCode(String hashCode) async {
+    final box = Hive.box(_tokenBoxName);
+    await box.put('account_hash_code', hashCode);
+  }
+
+  static String? getAccountHashCode() {
+    final box = Hive.box(_tokenBoxName);
+    return box.get('account_hash_code');
+  }
+
+  static Future<void> saveAccountData(int tokens, String hashCode) async {
+    final box = Hive.box(_tokenBoxName);
+    await box.put('user_tokens', tokens);
+    await box.put('account_hash_code', hashCode);
+  }
+
+  // Catalog management (persistent offline storage)
+  static Future<void> saveCatalog(Map<String, dynamic> catalogData) async {
+    final box = Hive.box(_catalogBoxName);
+    final timestampedData = {
+      'catalog': catalogData,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    await box.put('catalog_data', timestampedData);
+    debugPrint('📦 Catalog saved to persistent storage (${catalogData['totalStories']} stories)');
+  }
+
+  static Map<String, dynamic>? getCatalog() {
+    final box = Hive.box(_catalogBoxName);
+    final timestampedData = box.get('catalog_data') as Map<String, dynamic>?;
+
+    if (timestampedData != null) {
+      final catalogData = timestampedData['catalog'] as Map<String, dynamic>?;
+      final timestamp = timestampedData['timestamp'] as String?;
+
+      if (catalogData != null) {
+        debugPrint('📦 Loaded catalog from persistent storage (saved: $timestamp)');
+        return catalogData;
+      }
+    }
+
+    debugPrint('📦 No catalog found in persistent storage');
+    return null;
+  }
+
+  static bool hasCachedCatalog() {
+    final box = Hive.box(_catalogBoxName);
+    return box.containsKey('catalog_data');
+  }
+
+  static DateTime? getCatalogCacheTime() {
+    final box = Hive.box(_catalogBoxName);
+    final timestampedData = box.get('catalog_data') as Map<String, dynamic>?;
+
+    if (timestampedData != null) {
+      final timestamp = timestampedData['timestamp'] as String?;
+      if (timestamp != null) {
+        return DateTime.tryParse(timestamp);
+      }
+    }
+    return null;
+  }
+
+  static Future<void> clearCachedCatalog() async {
+    final box = Hive.box(_catalogBoxName);
+    await box.delete('catalog_data');
+    debugPrint('📦 Cleared cached catalog');
+  }
+
   // Story progress metadata
   static Future<void> saveStoryProgress(String storyId, Map<String, dynamic> progress) async {
     final box = Hive.box(_progressBoxName);

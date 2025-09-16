@@ -10,42 +10,81 @@ import 'state_manager.dart';
 class CatalogService {
   static LibraryCatalog? _cachedCatalog;
   
-  /// Get the library catalog from API
+  /// Get the library catalog with offline-first approach
   static Future<LibraryCatalog> getCatalog() async {
-    // Return cached catalog if available (simple session cache)
+    // Return session cache if available
     if (_cachedCatalog != null) {
-      debugPrint('Using cached catalog data');
+      debugPrint('📦 Using session cached catalog data');
       return _cachedCatalog!;
     }
-    
+
+    // Try to load from persistent storage first (offline-first)
+    final persistentCatalogData = IFEStateManager.getCatalog();
+    if (persistentCatalogData != null) {
+      try {
+        _cachedCatalog = LibraryCatalog.fromJson(persistentCatalogData);
+        debugPrint('📦 Loaded catalog from persistent storage - ${_cachedCatalog?.totalStories} stories');
+
+        // Update StoryMetadata from cached catalog
+        await _refreshStoryMetadata();
+
+        // Try to fetch fresh data in background (don't wait)
+        _fetchFreshCatalogInBackground();
+
+        return _cachedCatalog!;
+      } catch (e) {
+        debugPrint('❌ Failed to parse persistent catalog, will fetch from API: $e');
+        // Fall through to API fetch
+      }
+    }
+
+    // No cached data available, must fetch from API
+    return await _fetchCatalogFromAPI();
+  }
+
+  /// Fetch catalog from API (throws on failure)
+  static Future<LibraryCatalog> _fetchCatalogFromAPI() async {
     try {
       // Get user ID for API call
       final userId = await SecureAuthManager.getUserId();
-      if (userId == null) {
-        throw Exception('User not authenticated - no user ID found');
-      }
-      
-      // Load catalog from API
-      debugPrint('Fetching catalog from API...');
-      final catalogJson = await SecureApiService.getCatalog(userId);
-      
-      _cachedCatalog = LibraryCatalog.fromJson(catalogJson);
-      debugPrint('Catalog loaded successfully: ${_cachedCatalog?.totalStories} stories');
 
-      // Update StoryMetadata from latest playthroughs after loading catalog
+      // Load catalog from API
+      debugPrint('🌐 Fetching catalog from API...');
+      final catalogJson = await SecureApiService.getCatalog(userId);
+
+      _cachedCatalog = LibraryCatalog.fromJson(catalogJson);
+      debugPrint('✅ Catalog loaded from API: ${_cachedCatalog?.totalStories} stories');
+
+      // Save to persistent storage for offline use
+      await IFEStateManager.saveCatalog(catalogJson);
+
+      // Update StoryMetadata from latest catalog
       await _refreshStoryMetadata();
 
       return _cachedCatalog!;
     } catch (e) {
-      debugPrint('Failed to load catalog from API: $e');
+      debugPrint('❌ Failed to load catalog from API: $e');
       rethrow;
+    }
+  }
+
+  /// Fetch fresh catalog in background without blocking current operation
+  static void _fetchFreshCatalogInBackground() async {
+    try {
+      debugPrint('🔄 Fetching fresh catalog in background...');
+      await _fetchCatalogFromAPI();
+      debugPrint('✅ Background catalog refresh completed');
+    } catch (e) {
+      debugPrint('❌ Background catalog refresh failed (will use cached): $e');
+      // Don't rethrow - cached data is still valid
     }
   }
   
   /// Clear the cached catalog (for testing or when server data updates)
   static void clearCache() {
     _cachedCatalog = null;
-    debugPrint('Catalog cache cleared - will fetch fresh on next request');
+    IFEStateManager.clearCachedCatalog();
+    debugPrint('📦 All catalog caches cleared - will fetch fresh on next request');
   }
   
   /// Find a story across all genres by ID

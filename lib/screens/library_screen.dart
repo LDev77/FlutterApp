@@ -9,8 +9,11 @@ import '../widgets/smooth_scroll_behavior.dart';
 import '../services/catalog_service.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
+import '../services/background_data_service.dart';
+import '../services/connectivity_service.dart';
 import 'story_reader_screen.dart';
 import 'infiniteerium_purchase_screen.dart';
+import 'info_modal_screen.dart';
 import '../icons/custom_icons.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -30,53 +33,111 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _loadUserTokens();
-    _loadCachedCatalog(); // Use cached data instead of API call
+    _loadCachedCatalog();
+    _checkBackgroundLoading();
   }
 
   Future<void> _loadUserTokens() async {
-    // Data should already be loaded during splash screen
-    // Just read from local storage (which was updated during splash)
+    // Load tokens from local storage (may be null if not loaded yet)
     setState(() {
       _userTokens = IFEStateManager.getTokens();
     });
-    debugPrint('Library screen using cached token balance: $_userTokens');
+    debugPrint('Library screen loaded token balance: $_userTokens');
+  }
+
+  /// Check if background loading is in progress and listen for updates
+  void _checkBackgroundLoading() {
+    if (BackgroundDataService.isLoading) {
+      debugPrint('Background loading in progress, will refresh when complete');
+      _waitForBackgroundLoading();
+    }
+  }
+
+  /// Wait for background loading to complete and refresh data
+  Future<void> _waitForBackgroundLoading() async {
+    // Poll until background loading is complete
+    while (BackgroundDataService.isLoading) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    // Refresh data after background loading completes
+    debugPrint('Background loading complete, refreshing UI data');
+    _loadUserTokens();
+    _refreshCatalogIfNeeded();
+  }
+
+  /// Refresh catalog if background loading brought new data
+  void _refreshCatalogIfNeeded() {
+    // Only refresh if we don't have catalog data yet or had errors
+    if (_catalog == null || _errorMessage != null) {
+      _loadCachedCatalog();
+    }
   }
 
   void _loadCachedCatalog() {
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-      
-      // Sweep stale pending states before loading catalog
+      // First, try to get cached catalog immediately without showing loading
+      _tryLoadCachedCatalogSync();
+
+      // Then do async operations in background
       IFEStateManager.sweepStaleStates().then((_) {
-        // Catalog should already be cached from splash screen
-        // Use getCatalog() but it will return cached data instantly
         return CatalogService.getCatalog();
       }).then((catalog) {
+        debugPrint('✅ I got pre-cached catalog, rendering with ${catalog.genreRows.length} genre rows');
+
         // Get all story metadata and sort catalog by last played
         final allMetadata = IFEStateManager.getAllStoryMetadata();
         final sortedCatalog = catalog.sortStoriesByLastPlayed(allMetadata);
-        
+
         setState(() {
           _catalog = sortedCatalog;
           _isLoading = false;
         });
-        debugPrint('Library screen using cached catalog data with ${allMetadata.length} metadata entries');
+        debugPrint('Library screen loaded catalog data with ${allMetadata.length} metadata entries');
       }).catchError((e) {
+        debugPrint('❌ No pre-cached catalog available: $e');
+
         setState(() {
-          _errorMessage = 'Connection issue. Please retry in a bit.';
-          _isLoading = false;
+          if (_catalog == null) {
+            // Only show loading if we have absolutely nothing to show
+            _isLoading = false;
+          }
         });
-        debugPrint('Library screen cached catalog error: $e');
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Connection issue. Please retry in a bit.';
-        _isLoading = false;
-      });
       debugPrint('Library screen catalog load error: $e');
+    }
+  }
+
+  void _tryLoadCachedCatalogSync() {
+    try {
+      // Try to get cached catalog synchronously
+      final cachedCatalogData = IFEStateManager.getCatalog();
+      if (cachedCatalogData != null) {
+        debugPrint('✅ Found synchronous cached catalog, rendering immediately');
+
+        // Convert raw catalog data to LibraryCatalog
+        final libraryCatalog = LibraryCatalog.fromJson(cachedCatalogData);
+        final allMetadata = IFEStateManager.getAllStoryMetadata();
+        final sortedCatalog = libraryCatalog.sortStoriesByLastPlayed(allMetadata);
+
+        setState(() {
+          _catalog = sortedCatalog;
+          _isLoading = false;
+        });
+      } else {
+        debugPrint('❌ No synchronous cached catalog found');
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading sync catalog: $e');
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
     }
   }
 
@@ -105,6 +166,27 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                   ),
                   const Spacer(),
+
+                  // Connectivity info button
+                  AnimatedBuilder(
+                    animation: ConnectivityService.instance,
+                    builder: (context, child) {
+                      final connectivity = ConnectivityService.instance;
+                      return IconButton(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => const InfoModalScreen(),
+                          );
+                        },
+                        icon: Icon(
+                          connectivity.statusIcon,
+                          color: connectivity.statusColor,
+                        ),
+                        tooltip: 'App Info',
+                      );
+                    },
+                  ),
 
                   // Theme toggle button
                   AnimatedBuilder(
@@ -232,7 +314,41 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
 
     if (_catalog == null || _catalog!.genreRows.isEmpty) {
-      return const Center(child: Text('No content available'));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(50.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.auto_stories,
+                size: 64,
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.7),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Infiniteer',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Loading your story library...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      );
     }
 
     return ScrollConfiguration(
@@ -286,21 +402,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Main title - flexible and responsive
-                Flexible(
-                  flex: 3,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
+                // Main title box - top 1/3 of available space
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    width: double.infinity,
                     alignment: Alignment.centerLeft,
                     child: Text(
                       _catalog?.headerSubtitle ?? 'Premium Interactive Fiction',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 30,
+                        fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        height: 1.2,
+                        height: 1.1,
                         shadows: [
                           Shadow(
                             offset: Offset(0, 1),
@@ -309,24 +424,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           ),
                         ],
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.clip,
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                // Subtitle - flexible and responsive
-                Flexible(
+
+                // Subtitle box - bottom 2/3 of available space
+                Expanded(
                   flex: 2,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
+                  child: Container(
+                    width: double.infinity,
+                    alignment: Alignment.topLeft,
                     child: Text(
-                      _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories',
+                      _catalog?.welcomeMessage ?? 'Choose your adventure in immersive stories that adapt to your choices. Experience rich narratives with compelling characters in worlds limited only by imagination.',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
-                        height: 1.4,
+                        fontSize: 18,
+                        height: 1.3,
                         shadows: [
                           Shadow(
                             offset: Offset(0, 1),
@@ -335,8 +450,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           ),
                         ],
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.left,
+                      overflow: TextOverflow.clip,
                     ),
                   ),
                 ),

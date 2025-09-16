@@ -4,9 +4,16 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'secure_auth_manager.dart';
 import '../models/api_models.dart';
+import 'connectivity_service.dart';
 
 class SecureApiService {
-  static const String baseUrl = 'https://infiniteer.azurewebsites.net/api';
+  // Dynamic base URL - use localhost for web debug, Azure for everything else
+  static String get baseUrl {
+    if (kDebugMode && kIsWeb) {
+      return 'https://localhost:7161/api';
+    }
+    return 'https://infiniteer.azurewebsites.net/api';
+  }
   
   /// Make a story choice and advance the narrative (POST /play)
   static Future<PlayResponse> playStoryTurn(PlayRequest request) async {
@@ -21,14 +28,17 @@ class SecureApiService {
       ).timeout(const Duration(seconds: 150));
       
       if (response.statusCode == 200) {
+        // Mark as connected on successful response
+        ConnectivityService.instance.markConnected();
+
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final playResponse = PlayResponse.fromJson(responseData);
-        
+
         // Check for server error message in response
         if (playResponse.error != null && playResponse.error!.isNotEmpty) {
           throw ServerErrorException(playResponse.error!);
         }
-        
+
         debugPrint('Story turn processed successfully for user: ${request.userId.substring(0, 8)}...');
         return playResponse;
       } else if (response.statusCode == 400) {
@@ -45,6 +55,14 @@ class SecureApiService {
     } on TimeoutException {
       throw ServerBusyException('Looks like Infiniteer may be busy generating worlds. Try again soon. You were not charged a token.');
     } catch (e) {
+      // Check if this is a connection error (not server error)
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Connection timed out') ||
+          e.toString().contains('No address associated with hostname')) {
+        ConnectivityService.instance.markDisconnected();
+      }
+
       debugPrint('Failed to make story turn API call: $e');
       rethrow;
     }
@@ -61,6 +79,9 @@ class SecureApiService {
       ).timeout(const Duration(seconds: 150));
       
       if (response.statusCode == 200) {
+        // Mark as connected on successful response
+        ConnectivityService.instance.markConnected();
+
         debugPrint('Raw API Response Body: ${response.body}');
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         debugPrint('Parsed Response Data: $responseData');
@@ -74,6 +95,14 @@ class SecureApiService {
         throw Exception('Connection issue. Please retry in a bit.');
       }
     } catch (e) {
+      // Check if this is a connection error (not server error)
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Connection timed out') ||
+          e.toString().contains('No address associated with hostname')) {
+        ConnectivityService.instance.markDisconnected();
+      }
+
       debugPrint('Failed to get story introduction: $e');
       rethrow;
     }
@@ -93,6 +122,9 @@ class SecureApiService {
       ).timeout(const Duration(seconds: 30));
       
       if (response.statusCode == 200) {
+        // Mark as connected on successful response
+        ConnectivityService.instance.markConnected();
+
         final catalogData = jsonDecode(response.body) as Map<String, dynamic>;
         debugPrint('Catalog loaded from API for user: ${userId.substring(0, 8)}...');
         return catalogData;
@@ -102,6 +134,14 @@ class SecureApiService {
         throw Exception('Connection issue. Please retry in a bit.');
       }
     } catch (e) {
+      // Check if this is a connection error (not server error)
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Connection timed out') ||
+          e.toString().contains('No address associated with hostname')) {
+        ConnectivityService.instance.markDisconnected();
+      }
+
       debugPrint('Failed to get catalog from API: $e');
       rethrow;
     }
@@ -110,17 +150,24 @@ class SecureApiService {
   /// Get user account info including token balance from server
   static Future<AccountResponse> getAccountInfo(String userId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/account/${Uri.encodeComponent(userId)}'),
+      final request = AccountRequest(userId: userId);
+      final response = await http.post(
+        Uri.parse('$baseUrl/account'),
         headers: {
+          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
+        body: jsonEncode(request.toJson()),
       ).timeout(const Duration(seconds: 30));
-      
-      if (response.statusCode == 200) {
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Mark as connected on successful response
+        ConnectivityService.instance.markConnected();
+
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final account = AccountResponse.fromJson(responseData);
-        debugPrint('Account info loaded for user: ${userId.substring(0, 8)}... with ${account.tokenBalance} tokens');
+        final accountType = response.statusCode == 201 ? 'new' : 'existing';
+        debugPrint('Account info loaded ($accountType) for user: ${userId.substring(0, 8)}... with ${account.tokenBalance} tokens, hash: ${account.accountHashCode}');
         return account;
       } else if (response.statusCode == 401) {
         throw UnauthorizedException('Invalid or expired user ID');
@@ -128,6 +175,14 @@ class SecureApiService {
         throw Exception('Connection issue. Please retry in a bit.');
       }
     } catch (e) {
+      // Check if this is a connection error (not server error)
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Connection timed out') ||
+          e.toString().contains('No address associated with hostname')) {
+        ConnectivityService.instance.markDisconnected();
+      }
+
       debugPrint('Failed to get account info: $e');
       rethrow;
     }
@@ -136,10 +191,6 @@ class SecureApiService {
   /// Get user's token balance from server (legacy method - now uses getAccountInfo)
   static Future<int> getUserTokenBalance() async {
     final userId = await SecureAuthManager.getUserId();
-    if (userId == null) {
-      throw Exception('User not authenticated - no secure user ID found');
-    }
-    
     final account = await getAccountInfo(userId);
     return account.tokenBalance;
   }
@@ -148,8 +199,6 @@ class SecureApiService {
   static Future<bool> verifyUserAuthentication() async {
     try {
       final userId = await SecureAuthManager.getUserId();
-      if (userId == null) return false;
-      
       // Make a simple API call to verify the user ID is valid
       await getUserTokenBalance();
       return true;
@@ -172,6 +221,9 @@ class SecureApiService {
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
+        // Mark as connected on successful response
+        ConnectivityService.instance.markConnected();
+
         final responseData = jsonDecode(response.body) as Map<String, dynamic>;
         final peekResponse = PeekResponse.fromJson(responseData);
 
@@ -191,15 +243,22 @@ class SecureApiService {
     } on TimeoutException {
       throw ServerBusyException('Peek request timed out. Try again soon. You were not charged a token.');
     } catch (e) {
+      // Check if this is a connection error (not server error)
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('Connection refused') ||
+          e.toString().contains('Connection timed out') ||
+          e.toString().contains('No address associated with hostname')) {
+        ConnectivityService.instance.markDisconnected();
+      }
+
       debugPrint('Failed to get peek data: $e');
       rethrow;
     }
   }
 
   /// Get user ID for display/debugging purposes (truncated for security)
-  static Future<String?> getDisplayUserId() async {
+  static Future<String> getDisplayUserId() async {
     final userId = await SecureAuthManager.getUserId();
-    if (userId == null) return null;
 
     // Return truncated version for display
     if (userId.length > 8) {

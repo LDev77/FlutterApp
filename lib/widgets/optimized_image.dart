@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 class OptimizedImageWidget extends StatelessWidget {
   final String imageUrl;
@@ -19,7 +20,11 @@ class OptimizedImageWidget extends StatelessWidget {
     // Prepend base URL if the image URL doesn't contain a domain
     String fullImageUrl = imageUrl;
     if (!imageUrl.startsWith('http') && !imageUrl.startsWith('https://')) {
-      fullImageUrl = 'https://infiniteer.azurewebsites.net/$imageUrl';
+      // Dynamic base URL - use localhost for web debug, Azure for everything else
+      final baseUrl = (kDebugMode && kIsWeb)
+          ? 'https://localhost:7161'
+          : 'https://infiniteer.azurewebsites.net';
+      fullImageUrl = '$baseUrl/$imageUrl';
     }
     
     return Image.network(

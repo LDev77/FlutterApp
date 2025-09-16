@@ -28,13 +28,9 @@ class _AgeVerificationScreenState extends State<AgeVerificationScreen> {
 
     try {
       final userId = await SecureAuthManager.getUserId();
-      if (userId != null) {
-        final account = await SecureApiService.getAccountInfo(userId);
-        await IFEStateManager.saveTokens(account.tokenBalance);
-        debugPrint('Account balance loaded: ${account.tokenBalance} tokens for user: $userId');
-      } else {
-        debugPrint('No user ID found, tokens remain unset');
-      }
+      final account = await SecureApiService.getAccountInfo(userId);
+      await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
+      debugPrint('Account balance loaded: ${account.tokenBalance} tokens, hash: ${account.accountHashCode} for user: $userId');
     } catch (e) {
       debugPrint('Failed to load account balance: $e');
       // Don't set tokens to 0 on error - keep existing balance if any

@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 class SecureAuthManager {
   static const _storage = FlutterSecureStorage(
@@ -28,31 +29,53 @@ class SecureAuthManager {
     }
   }
   
-  /// Get the stored user ID
-  static Future<String?> getUserId() async {
-    // TESTING: Hardcode user ID for web localhost integration testing
-    if (kIsWeb) {
-      debugPrint('Using hardcoded test user ID for web localhost');
-      return 'Test#54321';
-    }
-
+  /// Get the stored user ID, generating a new GUID if none exists
+  static Future<String> getUserId() async {
     try {
+      // Try to read existing user ID from secure storage
       final userId = await _storage.read(key: _userIdKey);
       if (userId != null && userId.isNotEmpty) {
+        debugPrint('Found existing user ID: ${userId.substring(0, 8)}...');
         return userId;
       }
 
-      // FALLBACK: Create and save a test user ID for mobile testing
-      debugPrint('No user ID found in storage, creating test user ID for mobile');
-      const testUserId = 'Test#54321';
-      await _storage.write(key: _userIdKey, value: testUserId);
-      return testUserId;
+      // No stored user ID - generate new GUID and store it
+      debugPrint('No user ID found, generating new GUID...');
+      return await _generateAndStoreNewUserId();
     } catch (e) {
       debugPrint('Failed to read user ID from secure storage: $e');
-      // FINAL FALLBACK: Return test user ID even if storage fails
-      debugPrint('Using fallback test user ID for mobile');
-      return 'Test#54321';
+      // Even on storage failure, try to generate and store
+      debugPrint('Attempting to generate new user ID despite storage error...');
+      return await _generateAndStoreNewUserId();
     }
+  }
+
+  /// Generate a new GUID and store it securely
+  static Future<String> _generateAndStoreNewUserId() async {
+    // Generate a new GUID (will add UUID import)
+    final newUserId = _generateGuid();
+
+    try {
+      // Store the new GUID in secure storage
+      await _storage.write(key: _userIdKey, value: newUserId);
+      await _storage.write(key: _lastAuthDateKey, value: DateTime.now().toIso8601String());
+      debugPrint('Generated and stored new user ID: ${newUserId.substring(0, 8)}...');
+      return newUserId;
+    } catch (e) {
+      debugPrint('Failed to store new user ID: $e');
+      // Return the generated GUID even if storage fails
+      // This ensures app continues working, though ID won't persist
+      debugPrint('Returning generated user ID without storage: ${newUserId.substring(0, 8)}...');
+      return newUserId;
+    }
+  }
+
+  /// Generate a proper GUID using UUID package
+  static String _generateGuid() {
+    const uuid = Uuid();
+    final guidString = uuid.v4();
+    debugPrint('Generated new GUID: ${guidString.substring(0, 8)}...');
+    return guidString;
   }
   
   /// Save authentication token (Apple ID token / Google ID token)
@@ -78,14 +101,10 @@ class SecureAuthManager {
   
   /// Check if user is authenticated (has both user ID and token)
   static Future<bool> isAuthenticated() async {
-    // TESTING: For web localhost, always consider authenticated with test user
-    if (kIsWeb) {
-      return true;
-    }
-    
     final userId = await getUserId();
     final token = await getAuthToken();
-    return userId != null && token != null;
+    // User ID will always exist (generated if needed), check for auth token
+    return userId.isNotEmpty && token != null;
   }
   
   /// Get when the user was last authenticated

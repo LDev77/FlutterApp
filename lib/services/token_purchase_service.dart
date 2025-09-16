@@ -152,8 +152,13 @@ class TokenPurchaseService {
       'timestamp': DateTime.now().toIso8601String(),
     };
     
+    // Dynamic API URL - use localhost for web debug, Azure for everything else
+    final apiUrl = (kDebugMode && kIsWeb)
+        ? 'https://localhost:7161/api/purchase/validate'
+        : 'https://infiniteer.azurewebsites.net/api/purchase/validate';
+
     final response = await http.post(
-      Uri.parse('https://infiniteer.azurewebsites.net/api/purchase/validate'),
+      Uri.parse(apiUrl),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

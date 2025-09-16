@@ -58,7 +58,6 @@ class GlobalPlayService {
 
     try {
       final userId = await SecureAuthManager.getUserId();
-      if (userId == null) throw Exception('User not authenticated');
 
       // Create PlayRequest with all required fields
       final request = PlayRequest(

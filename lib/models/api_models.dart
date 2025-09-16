@@ -157,20 +157,44 @@ class ConversationMessage {
 }
 
 
-/// Account balance response from GET /api/account/{userId}
+/// Account request for POST /api/account
+class AccountRequest {
+  final String userId;
+
+  const AccountRequest({
+    required this.userId,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+    };
+  }
+
+  factory AccountRequest.fromJson(Map<String, dynamic> json) {
+    return AccountRequest(
+      userId: json['userId'] as String,
+    );
+  }
+}
+
+/// Account balance response from POST /api/account
 class AccountResponse {
   final String userId;
   final int tokenBalance;
+  final String accountHashCode;
 
   const AccountResponse({
     required this.userId,
     required this.tokenBalance,
+    required this.accountHashCode,
   });
 
   factory AccountResponse.fromJson(Map<String, dynamic> json) {
     return AccountResponse(
       userId: json['userId'] as String,
       tokenBalance: json['tokenBalance'] as int,
+      accountHashCode: json['hashCode'] as String,
     );
   }
 
@@ -178,6 +202,7 @@ class AccountResponse {
     return {
       'userId': userId,
       'tokenBalance': tokenBalance,
+      'hashCode': accountHashCode,
     };
   }
 }
