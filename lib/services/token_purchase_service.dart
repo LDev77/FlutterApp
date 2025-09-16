@@ -1,6 +1,7 @@
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'state_manager.dart';
@@ -13,17 +14,21 @@ class TokenPurchaseService {
   static const String _tokenPopular25 = 'tokens_popular_25';   // $6.99
   static const String _tokenPower50 = 'tokens_power_50';       // $12.99
   static const String _tokenUltimate100 = 'tokens_ultimate_100'; // $24.99
-  
+
   static const Set<String> _productIds = {
     _tokenStarter10,
     _tokenPopular25,
     _tokenPower50,
     _tokenUltimate100,
   };
-  
+
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
   List<ProductDetails> _products = [];
   bool _isInitialized = false;
+
+  // Callback functions
+  Function(String productId, int tokensAdded, int newBalance)? onPurchaseSuccess;
+  Function(String productId, String error)? onPurchaseError;
   
   // Singleton instance
   static TokenPurchaseService? _instance;
@@ -127,6 +132,9 @@ class TokenPurchaseService {
         final tokensAdded = validationResponse['tokensAdded'] as int;
         debugPrint('Purchase validated! Added $tokensAdded tokens. New balance: $newBalance');
         debugPrint('User ID stored securely: ${userId.substring(0, 8)}...');
+
+        // Notify listeners of successful purchase
+        onPurchaseSuccess?.call(purchaseDetails.productID, tokensAdded, newBalance);
       } else {
         // Server rejected purchase
         final error = validationResponse['error'] ?? 'Unknown error';
@@ -143,13 +151,21 @@ class TokenPurchaseService {
   Future<Map<String, dynamic>> _validatePurchaseWithServer(PurchaseDetails purchaseDetails) async {
     // Determine platform
     final platform = defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
-    
+
+    // Get user ID - if not available, create a new user
+    String? userId = await SecureAuthManager.getUserId();
+    if (userId == null) {
+      // Generate a new UUID for first-time users
+      userId = const Uuid().v4();
+      await SecureAuthManager.saveUserId(userId);
+    }
+
     final requestBody = {
+      'userId': userId,
       'platform': platform,
-      'transactionId': purchaseDetails.purchaseID,
-      'productId': purchaseDetails.productID,
-      'receiptData': purchaseDetails.verificationData.serverVerificationData,
-      'timestamp': DateTime.now().toIso8601String(),
+      'platformId': null,  // iOS: Apple user ID when available, Android: always null
+      'transactionId': purchaseDetails.verificationData.serverVerificationData,  // Purchase token/receipt
+      'sku': purchaseDetails.productID,
     };
     
     // Dynamic API URL - use localhost for web debug, Azure for everything else
@@ -174,8 +190,11 @@ class TokenPurchaseService {
   }
   
   void _handlePurchaseError(PurchaseDetails purchaseDetails) {
-    debugPrint('Purchase error for ${purchaseDetails.productID}: ${purchaseDetails.error}');
-    // TODO: Log error to analytics/crash reporting
+    final errorMsg = purchaseDetails.error?.message ?? 'Unknown error';
+    debugPrint('Purchase error for ${purchaseDetails.productID}: $errorMsg');
+
+    // Notify listeners of purchase error
+    onPurchaseError?.call(purchaseDetails.productID, errorMsg);
   }
   
   int _getTokensForProduct(String productId) {

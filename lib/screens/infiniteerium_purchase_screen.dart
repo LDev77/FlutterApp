@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/token_purchase_service.dart';
 import '../widgets/infinity_loading.dart';
 import '../icons/custom_icons.dart';
 import 'info_modal_screen.dart';
@@ -15,6 +17,7 @@ class InfiniteeriumPurchaseScreen extends StatefulWidget {
 
 class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScreen> {
   bool _isLoading = false;
+  TokenPack? _currentPurchase;
   
   final List<TokenPack> _tokenPacks = [
     TokenPack(
@@ -108,6 +111,23 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           
           // Footer info
           _buildFooterInfo(),
+
+          // Test button for UX preview
+          Container(
+            margin: const EdgeInsets.all(16),
+            child: ElevatedButton(
+              onPressed: () => _showTestSuccessDialog(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('TEST SUCCESS UX'),
+            ),
+          ),
         ],
       ),
     );
@@ -392,13 +412,31 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
 
   Future<void> _purchaseTokenPack(TokenPack pack) async {
     if (_isLoading) return;
-    
+
     setState(() {
       _isLoading = true;
+      _currentPurchase = pack;
     });
 
     try {
-      // Show loading dialog
+      // Set up purchase callbacks
+      TokenPurchaseService.instance.onPurchaseSuccess = (productId, tokensAdded, newBalance) {
+        if (mounted && _currentPurchase?.id == productId) {
+          Navigator.of(context).pop(); // Close waiting dialog
+          _showPurchaseSuccessDialog(_currentPurchase!, tokensAdded, newBalance);
+          _currentPurchase = null;
+        }
+      };
+
+      TokenPurchaseService.instance.onPurchaseError = (productId, error) {
+        if (mounted && _currentPurchase?.id == productId) {
+          Navigator.of(context).pop(); // Close waiting dialog
+          _showPurchaseErrorDialog(error);
+          _currentPurchase = null;
+        }
+      };
+
+      // Show initial loading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -411,35 +449,70 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                 showMessage: false,
               ),
               const SizedBox(height: 16),
-              const Text('Processing purchase...'),
+              const Text('Initiating purchase...'),
             ],
           ),
         ),
       );
 
-      // TODO: Implement actual in-app purchase API call here
-      // For now, simulate purchase for testing by calling the server
-      await Future.delayed(const Duration(seconds: 2));
-      
-      // NOTE: In production, this would be handled by the purchase validation API
-      // The server should handle the token addition and return the new balance
-      // await IFEStateManager.saveTokens(serverResponse.newTokenBalance);
-      
-      // For testing purposes, simulate server response
-      debugPrint('Purchase simulation: would call server API to add ${pack.tokens} tokens');
-      
-      // Close loading dialog
+      // Initialize service if needed
+      if (!TokenPurchaseService.instance.isInitialized) {
+        final initialized = await TokenPurchaseService.instance.initialize();
+        if (!initialized) {
+          throw Exception('Failed to initialize purchase service');
+        }
+      }
+
+      // Attempt purchase
+      final success = await TokenPurchaseService.instance.buyTokenPack(pack.id);
+
+      if (!success) {
+        throw Exception('Purchase initiation failed');
+      }
+
+      // Close initial dialog and show waiting dialog
       if (mounted) Navigator.of(context).pop();
-      
-      // Show success dialog
-      _showPurchaseSuccessDialog(pack);
-      
+
+      // Show waiting for completion dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const InfinityLoading.small(
+                  size: 80,
+                  showMessage: false,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Completing purchase...',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please wait while we validate your purchase',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
     } catch (e) {
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
-      
+
       // Show error dialog
-      _showErrorDialog('Purchase failed. Please try again.');
+      _showPurchaseErrorDialog('Purchase initiation failed. Please try again.');
+      _currentPurchase = null;
     } finally {
       if (mounted) {
         setState(() {
@@ -449,79 +522,305 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     }
   }
 
-  void _showPurchaseSuccessDialog(TokenPack pack) {
+  void _showPurchaseSuccessDialog(TokenPack pack, int tokensAdded, int newBalance) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green),
-            const SizedBox(width: 8),
-            const Text('Purchase Successful!'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('You\'ve successfully purchased:'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  CustomIcons.coin,
-                  size: 16,
-                  color: Colors.purple,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${pack.tokens} tokens',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'New balance: ${IFEStateManager.getTokensDisplay()} tokens',
-              style: TextStyle(
-                color: Colors.purple,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          width: double.infinity,
+          child: GestureDetector(
+            onTap: () {
               Navigator.of(context).pop(); // Close dialog
               Navigator.of(context).pop(); // Close purchase screen and return to story
             },
-            child: const Text('Continue'),
+            child: AlertDialog(
+            contentPadding: const EdgeInsets.all(0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Colors.purple.withOpacity(0.5),
+                width: 2,
+              ),
+            ),
+            content: Container(
+              width: double.maxFinite,
+              height: double.maxFinite,
+              child: Column(
+                children: [
+                  // Large coin section - takes most of the space
+                  Expanded(
+                    flex: 5,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.purple.withOpacity(0.1), Colors.purple.withOpacity(0.05)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(12),
+                          topRight: Radius.circular(12),
+                        ),
+                      ),
+                      child: Center(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            // Make coin as large as possible while maintaining aspect ratio
+                            final availableSize = math.min(constraints.maxWidth, constraints.maxHeight) * 0.85;
+                            return Container(
+                              width: availableSize,
+                              height: availableSize,
+                              child: Image.asset(
+                                'assets/images/Infiniteerium_med.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        colors: [Colors.purple, Colors.purple.shade700],
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      CustomIcons.coin,
+                                      size: availableSize * 0.5,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Content section
+                  Expanded(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Thank you!',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple,
+                            ),
+                          ),
+                          const SizedBox(height: 36),
+                          // Green checkmark (33% smaller)
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.green.shade700,
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 40, // Keep check mark original size
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'You\'ve successfully purchased $tokensAdded tokens',
+                            style: const TextStyle(fontSize: 16),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  CustomIcons.coin,
+                                  size: 20,
+                                  color: Colors.purple,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'New balance: $newBalance tokens',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.purple,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Tap to close message
+                          Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'tap anywhere to close',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                                fontStyle: FontStyle.italic,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  void _showErrorDialog(String message) {
+  void _showPurchaseErrorDialog(String error) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error, color: Colors.red),
-            const SizedBox(width: 8),
-            const Text('Purchase Error'),
-          ],
+        contentPadding: const EdgeInsets.all(0),
+        content: Container(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Error header with red background
+              Container(
+                width: double.infinity,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.withOpacity(0.1), Colors.red.withOpacity(0.05)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    topRight: Radius.circular(12),
+                  ),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Something went wrong...',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Purchase Failed',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      error,
+                      style: const TextStyle(fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: Colors.orange,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Don\'t worry - you haven\'t been charged',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        content: Text(message),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+          Container(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.grey.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
           ),
         ],
       ),
@@ -550,6 +849,22 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           ),
         ),
       ],
+    );
+  }
+
+  void _showTestSuccessDialog() {
+    _showPurchaseSuccessDialog(
+      TokenPack(
+        id: 'tokens_popular_25',
+        name: 'Popular Pack',
+        tokens: 25,
+        price: '\$6.99',
+        description: 'Most popular choice',
+        color: Colors.purple,
+        isPopular: true,
+      ),
+      25, // tokens added
+      78, // new balance
     );
   }
 }

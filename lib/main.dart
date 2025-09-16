@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'services/state_manager.dart';
 import 'services/theme_service.dart';
 import 'services/background_data_service.dart';
+import 'services/token_purchase_service.dart';
 import 'screens/library_screen.dart';
 import 'widgets/smooth_scroll_behavior.dart';
 
@@ -45,6 +46,10 @@ void _startBackgroundDataLoading() async {
 
   debugPrint('🚀 Starting background data loading...');
   BackgroundDataService.initialize();
+
+  // Initialize payment service
+  debugPrint('🛒 Initializing payment service...');
+  await TokenPurchaseService.instance.initialize();
 }
 
 
