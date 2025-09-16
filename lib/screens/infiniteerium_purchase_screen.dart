@@ -555,9 +555,18 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Colors.purple.withOpacity(0.1), Colors.purple.withOpacity(0.05)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.red.withOpacity(0.33),
+                            Colors.yellow.withOpacity(0.33),
+                            Colors.green.withOpacity(0.33),
+                            Colors.blue.withOpacity(0.33),
+                            Colors.deepPurple.withOpacity(0.33),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.35, 0.45, 0.5, 0.6, 0.7, 1.0],
+                          begin: Alignment(-1.0, 1.0), // Bottom-left (90° clockwise rotation)
+                          end: Alignment(1.0, -1.0), // Top-right
                         ),
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(12),
