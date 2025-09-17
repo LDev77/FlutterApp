@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:lottie/lottie.dart';
 
 /// A beautiful infinity loading widget using Lottie animation
@@ -41,26 +42,11 @@ class InfinityLoading extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Use local infinity Lottie animation
+          // Use error boundary to catch canvas rendering issues
           SizedBox(
             width: size,
             height: size,
-            child: Lottie.asset(
-              'assets/animations/Infinity@1x-1.0s-200px-200px.json',
-              width: size,
-              height: size,
-              fit: BoxFit.contain,
-              repeat: true,
-              animate: true,
-              errorBuilder: (context, error, stackTrace) {
-                // Fallback to themed circular progress indicator if asset fails to load
-                print('🚨 Lottie Error: $error');
-                return _buildFallbackLoader(context);
-              },
-              onLoaded: (composition) {
-                print('✅ Lottie loaded successfully: ${composition.duration}');
-              },
-            ),
+            child: _buildLottieWithErrorBoundary(context),
           ),
 
           if (showMessage && message != null) ...[
@@ -76,6 +62,24 @@ class InfinityLoading extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildLottieWithErrorBoundary(BuildContext context) {
+    return Lottie.asset(
+      'assets/animations/Infinity@1x-1.0s-200px-200px.json',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      repeat: true,
+      animate: true,
+      errorBuilder: (context, error, stackTrace) {
+        print('🚨 Lottie Error: $error');
+        return _buildFallbackLoader(context);
+      },
+      onLoaded: (composition) {
+        print('✅ Lottie loaded successfully: ${composition.duration}');
+      },
     );
   }
 
