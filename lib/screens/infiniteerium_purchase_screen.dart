@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 import '../services/state_manager.dart';
-import '../services/theme_service.dart';
 import '../services/connectivity_service.dart';
 import '../services/token_purchase_service.dart';
 import '../widgets/infinity_loading.dart';

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 
 // Custom scroll behavior for smooth scrolling across platforms
 class SilkyScrollBehavior extends ScrollBehavior {
