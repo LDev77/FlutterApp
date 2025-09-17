@@ -812,19 +812,39 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
   
   void _openSettings() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => StorySettingsOverlay(
-        storyId: widget.story.id,
-        onSettingsChanged: () {
-          // Callback when settings change - reload the story state
+    StorySettingsOverlay.show(
+      context,
+      widget.story.id,
+      () {
+        // Callback when settings change - reload the story state
+        setState(() {
+          // This will trigger a rebuild and reload the playthrough
+        });
+        _reloadStoryState();
+      },
+      onNavigateToCover: () {
+        // Navigate to cover page (page 0)
+        setState(() {
+          _currentPage = 0;
+        });
+        _pageController.jumpToPage(0);
+      },
+      onNavigateToValidPage: () {
+        // Navigate to the last valid turn page
+        if (_playthrough != null && _playthrough!.turnHistory.isNotEmpty) {
+          final lastValidPage = _playthrough!.turnHistory.length;
           setState(() {
-            // This will trigger a rebuild and reload the playthrough
+            _currentPage = lastValidPage;
           });
-          _reloadStoryState();
-        },
-      ),
+          _pageController.jumpToPage(lastValidPage);
+        } else {
+          // If no turns, go to cover page
+          setState(() {
+            _currentPage = 0;
+          });
+          _pageController.jumpToPage(0);
+        }
+      },
     );
   }
 

@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import '../services/theme_service.dart';
 import '../services/story_storage_manager.dart';
+import '../services/state_manager.dart';
 import '../styles/story_text_styles.dart';
 
 class StorySettingsOverlay extends StatefulWidget {
   final String storyId;
   final VoidCallback onSettingsChanged;
+  final VoidCallback? onNavigateToCover;
+  final VoidCallback? onNavigateToValidPage;
 
   const StorySettingsOverlay({
     super.key,
     required this.storyId,
     required this.onSettingsChanged,
+    this.onNavigateToCover,
+    this.onNavigateToValidPage,
   });
 
   @override
@@ -19,6 +24,19 @@ class StorySettingsOverlay extends StatefulWidget {
 
 class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
   bool _isDeleting = false;
+
+  /// Reset playthrough status to ready and clear any status messages
+  Future<void> _resetStatusToReady() async {
+    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.storyId, 'main');
+    if (playthroughMetadata != null && playthroughMetadata.status != 'ready') {
+      final updated = playthroughMetadata.copyWith(
+        status: 'ready',
+        statusMessage: null,
+        lastUserInput: null,
+      );
+      await IFEStateManager.savePlaythroughMetadata(updated);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +106,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                             color: Theme.of(context).primaryColor,
                           ),
                           title: Text(
-                            ThemeService.instance.isDarkMode ? 'Light Mode' : 'Dark Mode',
+                            ThemeService.instance.isDarkMode ? 'Change to Light Mode' : 'Change to Dark Mode',
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 16,
@@ -199,7 +217,55 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
 
                   const SizedBox(height: 16),
 
-                  // Section 3: Delete Last Turn
+                  // Section 3: Orientation Lock
+                  _buildSection(
+                    'Device Orientation',
+                    child: AnimatedBuilder(
+                      animation: ThemeService.instance,
+                      builder: (context, child) {
+                        return ListTile(
+                          leading: Icon(
+                            ThemeService.instance.isOrientationLocked ? Icons.screen_lock_portrait : Icons.screen_rotation,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                          title: Text(
+                            ThemeService.instance.isOrientationLocked
+                                ? 'Locked to Portrait'
+                                : 'Rotation Unlocked',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: 16,
+                            ),
+                          ),
+                          subtitle: Text(
+                            ThemeService.instance.isOrientationLocked
+                                ? 'Infiniteer works best in portrait orientation'
+                                : 'Device can rotate to landscape',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: Switch(
+                            value: ThemeService.instance.isOrientationLocked,
+                            onChanged: (value) {
+                              ThemeService.instance.setOrientationLock(value);
+                            },
+                            activeColor: Theme.of(context).primaryColor,
+                          ),
+                          onTap: () {
+                            ThemeService.instance.setOrientationLock(
+                              !ThemeService.instance.isOrientationLocked
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Section 4: Delete Last Turn
                   _buildSection(
                     'Turn Management',
                     child: ListTile(
@@ -232,7 +298,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                   
                   const SizedBox(height: 16),
                   
-                  // Section 4: Delete Entire Playthrough
+                  // Section 5: Delete Entire Playthrough
                   _buildSection(
                     'Playthrough Management',
                     child: ListTile(
@@ -367,13 +433,33 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
     setState(() {
       _isDeleting = true;
     });
-    
+
     try {
+      // Check if this will be deleting the entire playthrough (turn 1)
+      final turnCount = StoryStorageManager.getTurnCount(widget.storyId);
+      final willDeleteEntirePlaythrough = turnCount <= 1;
+
       final success = await StoryStorageManager.deleteLastTurn(widget.storyId);
       if (success) {
+        // Reset status to ready to clear any pending status page
+        await _resetStatusToReady();
+
+        // Update the story state
         widget.onSettingsChanged();
+
         if (mounted) {
           Navigator.of(context).pop(); // Close settings modal
+
+          // Navigate to appropriate page
+          if (willDeleteEntirePlaythrough) {
+            // Navigate to cover page (entire playthrough was deleted)
+            widget.onNavigateToCover?.call();
+          } else {
+            // Navigate to valid page (ensure user isn't on deleted turn)
+            widget.onNavigateToValidPage?.call();
+          }
+
+          // Show toast AFTER navigation and data changes
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Last turn deleted successfully'),
@@ -404,13 +490,23 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
     setState(() {
       _isDeleting = true;
     });
-    
+
     try {
       final success = await StoryStorageManager.deleteEntirePlaythrough(widget.storyId);
       if (success) {
+        // Reset status to ready to clear any pending status page
+        await _resetStatusToReady();
+
+        // Update the story state
         widget.onSettingsChanged();
+
         if (mounted) {
           Navigator.of(context).pop(); // Close settings modal
+
+          // Navigate to cover page (entire playthrough was deleted)
+          widget.onNavigateToCover?.call();
+
+          // Show toast AFTER navigation and data changes
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Playthrough deleted successfully'),
@@ -460,13 +556,21 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
   }
 
   /// Show the settings overlay
-  static void show(BuildContext context, String storyId, VoidCallback onSettingsChanged) {
+  static void show(
+    BuildContext context,
+    String storyId,
+    VoidCallback onSettingsChanged, {
+    VoidCallback? onNavigateToCover,
+    VoidCallback? onNavigateToValidPage,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (context) => StorySettingsOverlay(
         storyId: storyId,
         onSettingsChanged: onSettingsChanged,
+        onNavigateToCover: onNavigateToCover,
+        onNavigateToValidPage: onNavigateToValidPage,
       ),
     );
   }

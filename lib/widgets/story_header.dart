@@ -38,16 +38,20 @@ class StoryHeader extends StatelessWidget implements PreferredSizeWidget {
         onPressed: onBack,
       ),
       actions: [
-        // Token balance button
-        GestureDetector(
-          onTap: () => _openPaymentScreen(context),
-          child: _buildTokenButton(),
-        ),
         // Settings book icon
         IconButton(
           onPressed: onSettings,
           icon: const Icon(Icons.menu_book),
           tooltip: 'Story Settings',
+          visualDensity: VisualDensity.compact,
+        ),
+        // Token balance button
+        GestureDetector(
+          onTap: () => _openPaymentScreen(context),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 3.8),
+            child: _buildTokenButton(),
+          ),
         ),
         // Connectivity info button
         AnimatedBuilder(
@@ -63,6 +67,7 @@ class StoryHeader extends StatelessWidget implements PreferredSizeWidget {
               },
               icon: Icon(connectivity.statusIcon),
               color: connectivity.statusColor,
+              visualDensity: VisualDensity.compact,
             );
           },
         ),

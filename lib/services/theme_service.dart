@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum StoryFontSize { small, regular, large }
@@ -7,13 +8,16 @@ enum StoryFontSize { small, regular, large }
 class ThemeService extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
   static const String _fontSizeKey = 'story_font_size';
+  static const String _orientationLockKey = 'orientation_locked';
   ThemeMode _themeMode = ThemeMode.dark;
   StoryFontSize _storyFontSize = StoryFontSize.regular;
+  bool _orientationLocked = true; // Default to locked (current behavior)
   bool _isTransitioning = false;
 
   ThemeMode get themeMode => _themeMode;
   bool get isTransitioning => _isTransitioning;
   bool get isDarkMode => _themeMode == ThemeMode.dark;
+  bool get isOrientationLocked => _orientationLocked;
 
   StoryFontSize get storyFontSize => _storyFontSize;
   double get storyFontScale {
@@ -57,6 +61,15 @@ class ThemeService extends ChangeNotifier {
           _storyFontSize = newFontSize;
         }
       }
+
+      // Load orientation lock setting
+      final savedOrientationLock = prefs.getBool(_orientationLockKey);
+      if (savedOrientationLock != null) {
+        _orientationLocked = savedOrientationLock;
+      }
+
+      // Apply orientation setting
+      await _applyOrientationSetting();
 
       notifyListeners();
     } catch (e) {
@@ -114,6 +127,49 @@ class ThemeService extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  Future<void> setOrientationLock(bool locked) async {
+    if (_orientationLocked == locked) return;
+
+    _orientationLocked = locked;
+
+    // Save to local storage
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_orientationLockKey, locked);
+      debugPrint('ThemeService: Orientation lock saved: $locked');
+    } catch (e) {
+      debugPrint('ThemeService: Error saving orientation lock: $e');
+    }
+
+    // Apply orientation setting immediately
+    await _applyOrientationSetting();
+
+    notifyListeners();
+  }
+
+  Future<void> _applyOrientationSetting() async {
+    try {
+      if (_orientationLocked) {
+        // Lock to portrait only
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
+      } else {
+        // Allow all orientations
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      }
+      debugPrint('ThemeService: Applied orientation setting - locked: $_orientationLocked');
+    } catch (e) {
+      debugPrint('ThemeService: Error applying orientation setting: $e');
+    }
   }
 
   // Dark theme
