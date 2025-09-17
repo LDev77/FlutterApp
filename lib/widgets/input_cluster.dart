@@ -67,6 +67,7 @@ class InputCluster extends StatefulWidget {
   final FocusNode inputFocusNode;
   final VoidCallback onSendInput;
   final ValueChanged<bool>? onOptionsVisibilityChanged;
+  final bool isLoading;
 
   const InputCluster({
     super.key,
@@ -75,6 +76,7 @@ class InputCluster extends StatefulWidget {
     required this.inputFocusNode,
     required this.onSendInput,
     this.onOptionsVisibilityChanged,
+    this.isLoading = false,
   });
 
   @override
@@ -496,7 +498,7 @@ class _InputClusterState extends State<InputCluster> {
 
                       // Send button (circular)
                       GestureDetector(
-                        onTap: _canSendInput() ? widget.onSendInput : null,
+                        onTap: (_canSendInput() && !widget.isLoading) ? widget.onSendInput : null,
                         child: Container(
                           width: 50,
                           height: 50,
@@ -520,11 +522,16 @@ class _InputClusterState extends State<InputCluster> {
                                 : [],
                           ),
                           child: Center(
-                            child: Icon(
-                              CustomIcons.coin,
-                              size: 20,
-                              color: _canSendInput() ? Colors.white : Colors.grey.shade600,
-                            ),
+                            child: widget.isLoading
+                                ? const InfinityLoading.small(
+                                    size: 20,
+                                    color: Colors.white,
+                                  )
+                                : Icon(
+                                    CustomIcons.coin,
+                                    size: 20,
+                                    color: _canSendInput() ? Colors.white : Colors.grey.shade600,
+                                  ),
                           ),
                         ),
                       ),

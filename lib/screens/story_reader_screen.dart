@@ -36,6 +36,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   bool _optionsVisible = false;
+  bool _isLoading = false;
 
 
   @override
@@ -612,6 +613,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
           inputController: _inputController,
           inputFocusNode: _inputFocusNode,
           onSendInput: _handleSendInput,
+          isLoading: _isLoading,
           onOptionsVisibilityChanged: (visible) {
             setState(() {
               _optionsVisible = visible;
@@ -651,7 +653,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
   Future<void> _handleApiStoryInput(String input) async {
     print('API story input: $input');
-    
+
+    // Set loading state
+    setState(() {
+      _isLoading = true;
+    });
+
     // Clear input and unfocus immediately
     _inputController.clear();
     _inputFocusNode.unfocus();
@@ -706,6 +713,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   void _onPlayComplete(PlayResponse? response, Exception? error) async {
     // Only update UI if widget is still mounted
     if (!mounted) return;
+
+    // Clear loading state
+    setState(() {
+      _isLoading = false;
+    });
     
     if (error != null) {
       // Set playthrough status to exception with error message

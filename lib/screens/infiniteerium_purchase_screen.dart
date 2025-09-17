@@ -113,20 +113,41 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           // Footer info
           _buildFooterInfo(),
 
-          // Test button for UX preview
+          // Test buttons for UX preview
           Container(
             margin: const EdgeInsets.all(16),
-            child: ElevatedButton(
-              onPressed: () => _showTestSuccessDialog(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _showTestSuccessDialog(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('TEST SUCCESS UX'),
+                  ),
                 ),
-              ),
-              child: const Text('TEST SUCCESS UX'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _showTestLottieDialog(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('TEST LOTTIE'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -702,6 +723,38 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
       ),
       25, // tokens added
       78, // new balance
+    );
+  }
+
+  void _showTestLottieDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        title: const Text('Lottie Animation Test'),
+        content: Container(
+          width: 300,
+          height: 200,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Testing InfinityLoading widget:'),
+              const SizedBox(height: 20),
+              const InfinityLoading(
+                size: 80,
+                message: 'Testing Lottie Animation',
+                showMessage: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -87,22 +87,14 @@ class StoryStatusPage extends StatelessWidget {
 
     switch (status) {
       case 'pending':
-        return Column(
+        return const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const InfinityLoading(
+            InfinityLoading(
               size: 80,
-              showMessage: false,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Creating your world...',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                fontSize: 16,
-              ),
-              textAlign: TextAlign.center,
+              message: 'Entering Your World',
+              showMessage: true,
             ),
           ],
         );
