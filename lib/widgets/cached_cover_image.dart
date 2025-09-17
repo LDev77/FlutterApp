@@ -12,6 +12,61 @@ class CachedCoverImage extends StatelessWidget {
   final BorderRadius? borderRadius;
   final StoryMetadata? metadata;
 
+  // Static tracking for failed images
+  static final Set<String> _failedImages = <String>{};
+  static final Map<String, GlobalKey> _imageKeys = <String, GlobalKey>{};
+  static final Map<String, ValueNotifier<int>> _refreshNotifiers = <String, ValueNotifier<int>>{};
+
+  /// Get list of currently failed image URLs
+  static List<String> getFailedImages() {
+    return _failedImages.toList();
+  }
+
+  /// Refresh all currently failed images
+  static Future<void> refreshFailedImages() async {
+    debugPrint('🖼️ refreshFailedImages() called');
+    debugPrint('🖼️ _failedImages.length = ${_failedImages.length}');
+    debugPrint('🖼️ Failed image URLs: ${_failedImages.toList()}');
+
+    if (_failedImages.isEmpty) {
+      debugPrint('🔄 No failed images to refresh');
+      return;
+    }
+
+    debugPrint('🔄 Refreshing ${_failedImages.length} failed images...');
+
+    // Create a copy to avoid modification during iteration
+    final failedUrls = _failedImages.toList();
+
+    for (String url in failedUrls) {
+      try {
+        debugPrint('🔄 Attempting to refresh image: $url');
+
+        // Evict from cache to force reload
+        await CachedNetworkImage.evictFromCache(url);
+        debugPrint('✅ Evicted cache for: $url');
+
+        // Trigger widget rebuild using ValueNotifier
+        final notifier = _refreshNotifiers[url];
+        if (notifier != null) {
+          notifier.value++;
+          debugPrint('✅ Triggered refresh notifier for: $url (value: ${notifier.value})');
+        } else {
+          debugPrint('⚠️ No refresh notifier found for: $url');
+        }
+
+        // Remove from failed list since we're trying to refresh it
+        _failedImages.remove(url);
+        debugPrint('✅ Removed $url from failed images list');
+
+      } catch (e) {
+        debugPrint('❌ Failed to refresh image $url: $e');
+      }
+    }
+
+    debugPrint('🖼️ refreshFailedImages() completed. Remaining failed: ${_failedImages.length}');
+  }
+
   const CachedCoverImage({
     super.key,
     required this.imageUrl,
@@ -66,34 +121,60 @@ class CachedCoverImage extends StatelessWidget {
       );
     } else {
       // Mobile platforms - use CachedNetworkImage for enhanced caching
-      imageWidget = CachedNetworkImage(
-        imageUrl: fullImageUrl,
-        fit: fit,
-        width: width,
-        height: height,
-        // Cache for 2 weeks (longer than requested 1+ week)
-        cacheManager: CustomCacheManager.instance.cacheManager,
-        placeholder: (context, url) => Container(
-          color: Colors.grey[900],
-          child: const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
-              strokeWidth: 2.0,
+      // Assign unique key for tracking
+      _imageKeys[fullImageUrl] ??= GlobalKey();
+      _refreshNotifiers[fullImageUrl] ??= ValueNotifier<int>(0);
+
+      imageWidget = ValueListenableBuilder<int>(
+        valueListenable: _refreshNotifiers[fullImageUrl]!,
+        builder: (context, refreshCount, child) {
+          return CachedNetworkImage(
+            key: ValueKey('${fullImageUrl}_$refreshCount'), // Unique key for each refresh
+            imageUrl: fullImageUrl,
+            fit: fit,
+            width: width,
+            height: height,
+            // Ultra-conservative caching - keep images for years
+            cacheManager: CustomCacheManager.instance.cacheManager,
+
+            // Track successful loads
+            imageBuilder: (context, imageProvider) {
+              _failedImages.remove(fullImageUrl); // Remove from failed list on success
+              debugPrint('✅ Image loaded successfully: $fullImageUrl');
+              debugPrint('🖼️ Remaining failed images: ${_failedImages.length}');
+              return Image(image: imageProvider, fit: fit);
+            },
+            placeholder: (context, url) => Container(
+              color: Colors.grey[900],
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
+                  strokeWidth: 2.0,
+                ),
+              ),
             ),
-          ),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey[900],
-          child: const Icon(
-            Icons.error,
-            color: Colors.white54,
-            size: 32,
-          ),
-        ),
-        // Fade in animation for smooth loading
-        fadeInDuration: const Duration(milliseconds: 300),
-        fadeOutDuration: const Duration(milliseconds: 100),
-        useOldImageOnUrlChange: true,
+            errorWidget: (context, url, error) {
+              // Track failed images
+              _failedImages.add(url);
+              debugPrint('❌ Image failed to load: $url - Error: $error');
+              debugPrint('🖼️ Total failed images now: ${_failedImages.length}');
+              debugPrint('🖼️ Failed images list: ${_failedImages.toList()}');
+
+              return Container(
+                color: Colors.grey[900],
+                child: const Icon(
+                  Icons.error,
+                  color: Colors.white54,
+                  size: 32,
+                ),
+              );
+            },
+            // Fade in animation for smooth loading
+            fadeInDuration: const Duration(milliseconds: 300),
+            fadeOutDuration: const Duration(milliseconds: 100),
+            useOldImageOnUrlChange: true,
+          );
+        },
       );
     }
 
@@ -115,39 +196,9 @@ class CachedCoverImage extends StatelessWidget {
 
   Widget _buildImageWithProgressIndicator(Widget imageWidget) {
     if (metadata == null) return imageWidget;
-    
-    final bool hasProgress = metadata!.currentTurn > 0;
-    final bool isRecent = metadata!.lastPlayedAt != null && 
-        DateTime.now().difference(metadata!.lastPlayedAt!).inDays < 7;
 
-    return Stack(
-      children: [
-        imageWidget,
-        
-        
-        // Recent badge (top right)
-        if (isRecent && !metadata!.isCompleted)
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Recent',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
+    // Note: Recent badge moved to library card bottom area
+    return imageWidget;
   }
 }
 
@@ -160,9 +211,9 @@ class CustomCacheManager {
   
   CustomCacheManager._();
   
-  // Cache for 2 weeks (14 days)
-  static const Duration stalePeriod = Duration(days: 14);
-  static const Duration maxCacheAge = Duration(days: 30);
+  // Cache for 1 year (ultra-conservative - never lose cached images)
+  static const Duration stalePeriod = Duration(days: 365);
+  static const Duration maxCacheAge = Duration(days: 730);
   
   static CacheManager? _cacheManager;
   
@@ -171,7 +222,7 @@ class CustomCacheManager {
       Config(
         key,
         stalePeriod: stalePeriod,
-        maxNrOfCacheObjects: 500, // Allow up to 500 cached images
+        maxNrOfCacheObjects: 2000, // Allow up to 2000 cached images (ultra-conservative)
         repo: JsonCacheInfoRepository(databaseName: key),
         fileService: HttpFileService(),
       ),

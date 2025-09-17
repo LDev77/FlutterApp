@@ -3,6 +3,7 @@ import '../models/catalog/library_catalog.dart';
 import '../models/catalog/genre_row.dart';
 import '../models/catalog/catalog_story.dart';
 import '../models/story.dart'; // Still needed for StoryReaderScreen compatibility
+import '../models/story_metadata.dart';
 import '../widgets/cached_cover_image.dart';
 import '../widgets/infinity_loading.dart';
 import '../widgets/smooth_scroll_behavior.dart';
@@ -342,10 +343,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       debugPrint('DEBUG: Catalog headerSubtitle: "${_catalog!.headerSubtitle}"');
     }
     return Container(
-      height: 216, // 200 height + 16 padding left/right/bottom only
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      height: 205, // 190 height + 15 padding (5% reduction from 216)
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 15),
       child: Container(
-        height: 200,
+        height: 190, // 5% reduction from 200
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           image: const DecorationImage(
@@ -527,27 +528,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                   ),
                   
-                  // Adult content indicator
-                  if (story.tags.contains('Romance') || story.tags.contains('Adult'))
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.all(Radius.circular(12)),
-                        ),
-                        child: Text(
-                          '18+',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
                   
                   // Floating gradient overlay with content at bottom
                   Positioned(
@@ -602,6 +582,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 8),
+                            // Tags/chips row
+                            _buildChipsRow(story, metadata),
                           ],
                         ),
                       ),
@@ -611,6 +594,57 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChipsRow(CatalogStory story, StoryMetadata? metadata) {
+    final chips = <Widget>[];
+
+    // Recent chip (green color)
+    if (metadata != null &&
+        metadata.lastPlayedAt != null &&
+        DateTime.now().difference(metadata.lastPlayedAt!).inDays < 7 &&
+        !metadata.isCompleted) {
+      chips.add(_buildChip('Recent', Colors.green));
+    }
+
+    // 18+ chip (red color)
+    if (story.tags.contains('Romance') || story.tags.contains('Adult')) {
+      chips.add(_buildChip('18+', Colors.red));
+    }
+
+    // Story tags (purple/magenta color)
+    for (final tag in story.tags) {
+      // Skip tags that are already handled separately
+      if (tag != 'Romance' && tag != 'Adult') {
+        chips.add(_buildChip(tag, Colors.purple));
+      }
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: chips,
+    );
+  }
+
+  Widget _buildChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -738,42 +772,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _tryAccountReconnect() async {
-    if (ConnectivityService.instance.isConnected) {
-      // Already connected, stop timer
-      _connectivityTimer?.cancel();
-      _connectivityTimer = null;
-      return;
-    }
-
     debugPrint('🔄 Attempting account reconnect...');
 
     try {
       final userId = await SecureAuthManager.getUserId();
+      debugPrint('🔄 Got userId: $userId');
+
       await SecureApiService.getAccountInfo(userId);
+      debugPrint('✅ Account call succeeded! ConnectivityService.isConnected = ${ConnectivityService.instance.isConnected}');
 
       // If we reach here, account call succeeded and connectivity is now marked connected
       debugPrint('✅ Account reconnect successful, fetching catalog...');
 
-      // Now call catalog since we're connected
+      // Force fresh catalog fetch (bypass cache) during recovery
+      debugPrint('🔄 Clearing catalog cache to force fresh fetch...');
+      CatalogService.clearCache();
+
+      debugPrint('🔄 About to call CatalogService.getCatalog() (fresh fetch)...');
       final catalog = await CatalogService.getCatalog();
+      debugPrint('✅ Catalog call succeeded! Got ${catalog.genreRows.length} genre rows');
 
       // Get all story metadata and sort catalog by last played
       final allMetadata = IFEStateManager.getAllStoryMetadata();
       final sortedCatalog = catalog.sortStoriesByLastPlayed(allMetadata);
+      debugPrint('🔄 Sorted catalog with ${allMetadata.length} metadata entries');
 
       if (mounted) {
         setState(() {
           _catalog = sortedCatalog;
           _errorMessage = null; // Clear any previous error
         });
+        debugPrint('✅ UI state updated with new catalog');
       }
+
+      // Step 3: Refresh any failed cover images now that we're connected
+      debugPrint('🖼️ Refreshing failed cover images after reconnection...');
+      await CachedCoverImage.refreshFailedImages();
+      debugPrint('✅ Failed images refresh completed');
 
       // Stop the timer since we're now connected
       _connectivityTimer?.cancel();
       _connectivityTimer = null;
+      debugPrint('✅ Connectivity timer stopped - full recovery complete!');
 
     } catch (e) {
       debugPrint('❌ Account reconnect failed: $e');
+      debugPrint('❌ Error type: ${e.runtimeType}');
+      debugPrint('❌ Stack trace: ${StackTrace.current}');
       // Timer will continue and try again in 1 minute
     }
   }
