@@ -109,36 +109,57 @@ class _PaymentSuccessModalState extends State<PaymentSuccessModal>
                               topRight: Radius.circular(12),
                             ),
                           ),
-                          child: Center(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                // Make coin as large as possible while maintaining aspect ratio
-                                final availableSize = math.min(constraints.maxWidth, constraints.maxHeight) * 0.85;
-                                return Container(
-                                  width: availableSize,
-                                  height: availableSize,
-                                  child: Image.asset(
-                                    'assets/images/Infiniteerium_med.png',
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: LinearGradient(
-                                            colors: [Colors.purple, Colors.purple.shade700],
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          CustomIcons.coin,
-                                          size: availableSize * 0.5,
-                                          color: Colors.white,
-                                        ),
-                                      );
-                                    },
+                          child: Stack(
+                            children: [
+                              // Radial gradient overlay
+                              Container(
+                                width: double.infinity,
+                                height: double.infinity,
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: Alignment.center,
+                                    radius: 0.8,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.8),
+                                    ],
+                                    stops: [0.4, 1.0],
                                   ),
-                                );
-                              },
-                            ),
+                                ),
+                              ),
+                              // Coin centered on top
+                              Center(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    // Make coin as large as possible while maintaining aspect ratio
+                                    final availableSize = math.min(constraints.maxWidth, constraints.maxHeight) * 0.85;
+                                    return Container(
+                                      width: availableSize,
+                                      height: availableSize,
+                                      child: Image.asset(
+                                        'assets/images/Infiniteerium_med.png',
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              gradient: LinearGradient(
+                                                colors: [Colors.purple, Colors.purple.shade700],
+                                              ),
+                                            ),
+                                            child: Icon(
+                                              CustomIcons.coin,
+                                              size: availableSize * 0.5,
+                                              color: Colors.white,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
