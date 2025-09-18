@@ -679,7 +679,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     setState(() {
       _currentPage = statusPageIndex;
     });
-    _pageController.jumpToPage(statusPageIndex);
+    _pageController.animateToPage(
+      statusPageIndex,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
 
     // Get the current turn for the API call
     final currentTurn = _playthrough!.turnHistory.last;
@@ -775,15 +779,20 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
     if (savedPlaythrough != null) {
       _playthrough = savedPlaythrough;
-      
+
       // Navigate to the last turn (where input cluster is)
       final lastTurnIndex = _playthrough!.turnHistory.length;
       setState(() {
         _currentPage = lastTurnIndex;
       });
-      
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _pageController.jumpToPage(lastTurnIndex);
+      });
+    } else {
+      // No playthrough data - reset to null and trigger rebuild
+      setState(() {
+        _playthrough = null;
       });
     }
   }
@@ -822,7 +831,10 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         });
         _reloadStoryState();
       },
-      onNavigateToCover: () {
+      onNavigateToCover: () async {
+        // Reload story state to reflect deleted playthrough
+        await _reloadStoryState();
+
         // Navigate to cover page (page 0)
         setState(() {
           _currentPage = 0;
@@ -849,6 +861,25 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   @override
+  // DEBUG: Temporary debug method - remove after debugging
+  void debugCurrentStory() {
+    print('=== DEBUG CURRENT STORY ===');
+    GlobalPlayService.debugStoryMetadata(widget.story.id);
+    GlobalPlayService.debugPlaythroughMetadata(widget.story.id);
+    GlobalPlayService.debugAllTurns(widget.story.id);
+    GlobalPlayService.debugStoryState(widget.story.id);
+    print('=== END DEBUG ===');
+  }
+
+  // DEBUG: Auto-trigger debug on hot reload
+  @override
+  void reassemble() {
+    super.reassemble();
+    if (widget.story.id == "Colossal") {
+      debugCurrentStory();
+    }
+  }
+
   void dispose() {
     // Unregister from global play service callbacks
     GlobalPlayService.unregisterCallback(widget.story.id, _onPlayComplete);

@@ -93,7 +93,7 @@ class StoryStatusPage extends StatelessWidget {
           children: [
             InfinityLoading(
               size: 80,
-              message: 'Entering Your World',
+              message: 'Infiniteering',
               showMessage: true,
             ),
           ],

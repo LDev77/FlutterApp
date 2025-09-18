@@ -22,9 +22,23 @@ class CachedCoverImage extends StatelessWidget {
     return _failedImages.toList();
   }
 
+  /// Force clear all image cache (destructive - use with caution)
+  static Future<void> clearAllImageCache() async {
+    debugPrint('🗑️ WARNING: Clearing ALL image cache - this is destructive!');
+    try {
+      await CustomCacheManager.instance.cacheManager.emptyCache();
+      _failedImages.clear();
+      debugPrint('✅ All image cache cleared');
+    } catch (e) {
+      debugPrint('❌ Failed to clear image cache: $e');
+    }
+  }
+
   /// Refresh all currently failed images
-  static Future<void> refreshFailedImages() async {
-    debugPrint('🖼️ refreshFailedImages() called');
+  /// By default, preserves cached images to avoid losing valid cover images during server reconnection
+  /// Set preserveCache=false only when you want to force complete cache eviction
+  static Future<void> refreshFailedImages({bool preserveCache = true}) async {
+    debugPrint('🖼️ refreshFailedImages() called (preserveCache: $preserveCache)');
     debugPrint('🖼️ _failedImages.length = ${_failedImages.length}');
     debugPrint('🖼️ Failed image URLs: ${_failedImages.toList()}');
 
@@ -42,9 +56,13 @@ class CachedCoverImage extends StatelessWidget {
       try {
         debugPrint('🔄 Attempting to refresh image: $url');
 
-        // Evict from cache to force reload
-        await CachedNetworkImage.evictFromCache(url);
-        debugPrint('✅ Evicted cache for: $url');
+        // Only evict from cache if explicitly requested (not preserving cache)
+        if (!preserveCache) {
+          await CachedNetworkImage.evictFromCache(url);
+          debugPrint('✅ Evicted cache for: $url');
+        } else {
+          debugPrint('🔒 Preserving cache for: $url (will retry without eviction)');
+        }
 
         // Trigger widget rebuild using ValueNotifier
         final notifier = _refreshNotifiers[url];

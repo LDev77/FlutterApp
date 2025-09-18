@@ -222,8 +222,8 @@ class _InputClusterState extends State<InputCluster> {
       _updateInputClusterHeight();
     });
 
-    // Initialize spell check
-    _initializeSpellCheck();
+    // Initialize spell check - DISABLED
+    // _initializeSpellCheck();
   }
 
   Future<void> _initializeSpellCheck() async {
@@ -239,17 +239,21 @@ class _InputClusterState extends State<InputCluster> {
         letters: LanguageLetters.getLanguageForLanguage('en'),
       );
 
-      setState(() {
-        _spellCheckInitialized = true;
-      });
+      if (mounted) {
+        setState(() {
+          _spellCheckInitialized = true;
+        });
+      }
 
       print('📝 Spell check initialized with ${content.split('\n').length} words');
     } catch (e) {
       print('❌ Failed to initialize spell check: $e');
       // Continue without spell check
-      setState(() {
-        _spellCheckInitialized = false;
-      });
+      if (mounted) {
+        setState(() {
+          _spellCheckInitialized = false;
+        });
+      }
     }
   }
 

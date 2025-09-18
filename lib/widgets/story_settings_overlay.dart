@@ -20,6 +20,26 @@ class StorySettingsOverlay extends StatefulWidget {
 
   @override
   State<StorySettingsOverlay> createState() => _StorySettingsOverlayState();
+
+  /// Show the settings overlay
+  static void show(
+    BuildContext context,
+    String storyId,
+    VoidCallback onSettingsChanged, {
+    VoidCallback? onNavigateToCover,
+    VoidCallback? onNavigateToValidPage,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => StorySettingsOverlay(
+        storyId: storyId,
+        onSettingsChanged: onSettingsChanged,
+        onNavigateToCover: onNavigateToCover,
+        onNavigateToValidPage: onNavigateToValidPage,
+      ),
+    );
+  }
 }
 
 class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
@@ -553,25 +573,5 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
       case StoryFontSize.large:
         return '20% larger (+20%)';
     }
-  }
-
-  /// Show the settings overlay
-  static void show(
-    BuildContext context,
-    String storyId,
-    VoidCallback onSettingsChanged, {
-    VoidCallback? onNavigateToCover,
-    VoidCallback? onNavigateToValidPage,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => StorySettingsOverlay(
-        storyId: storyId,
-        onSettingsChanged: onSettingsChanged,
-        onNavigateToCover: onNavigateToCover,
-        onNavigateToValidPage: onNavigateToValidPage,
-      ),
-    );
   }
 }

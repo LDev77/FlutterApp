@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/story.dart';
 import '../services/state_manager.dart';
 import '../services/connectivity_service.dart';
+import '../services/background_data_service.dart';
+import '../services/secure_auth_manager.dart';
+import '../services/secure_api_service.dart';
 import '../screens/infiniteerium_purchase_screen.dart';
 import '../screens/info_modal_screen.dart';
 import '../icons/custom_icons.dart';
 
-class StoryHeader extends StatelessWidget implements PreferredSizeWidget {
+class StoryHeader extends StatefulWidget implements PreferredSizeWidget {
   final Story story;
   final int currentPage;
   final int totalTurns;
@@ -26,21 +30,95 @@ class StoryHeader extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
+  State<StoryHeader> createState() => _StoryHeaderState();
+}
+
+class _StoryHeaderState extends State<StoryHeader> {
+  Timer? _connectivityTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for connectivity changes and start timer if disconnected
+    ConnectivityService.instance.addListener(_onConnectivityChanged);
+    _checkAndStartConnectivityTimer();
+  }
+
+  @override
+  void dispose() {
+    ConnectivityService.instance.removeListener(_onConnectivityChanged);
+    _connectivityTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onConnectivityChanged() {
+    _checkAndStartConnectivityTimer();
+  }
+
+  void _checkAndStartConnectivityTimer() {
+    if (!ConnectivityService.instance.isConnected) {
+      // Start timer if disconnected and not already running
+      if (_connectivityTimer == null || !_connectivityTimer!.isActive) {
+        debugPrint('📵 Story Header: Starting connectivity recovery timer');
+        _connectivityTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+          await _tryAccountReconnect();
+        });
+      }
+    } else {
+      // Stop timer if connected
+      if (_connectivityTimer != null) {
+        debugPrint('🌐 Story Header: Stopping connectivity recovery timer (now connected)');
+        _connectivityTimer!.cancel();
+        _connectivityTimer = null;
+      }
+    }
+  }
+
+  Future<void> _tryAccountReconnect() async {
+    debugPrint('🔄 Story Header: Attempting account reconnect...');
+
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      final account = await SecureApiService.getAccountInfo(userId);
+
+      // Save account data using the established method
+      await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
+      debugPrint('✅ Story Header: Account reconnect successful, tokens: ${account.tokenBalance}');
+
+      // Trigger UI rebuild to reflect updated token balance
+      if (mounted) {
+        setState(() {
+          // This will refresh the token display
+        });
+      }
+
+      // Stop the timer since we're now connected
+      _connectivityTimer?.cancel();
+      _connectivityTimer = null;
+      debugPrint('✅ Story Header: Connectivity timer stopped - reconnect complete!');
+
+    } catch (e) {
+      debugPrint('❌ Story Header: Account reconnect failed: $e');
+      // Timer will continue and try again in 30 seconds
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AppBar(
       title: Text(
-        '${story.title} ($currentPage/$totalTurns)',
+        '${widget.story.title} (${widget.currentPage}/${widget.totalTurns})',
         style: const TextStyle(fontSize: 16),
       ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: onBack,
+        onPressed: widget.onBack,
       ),
       actions: [
         // Settings book icon
         IconButton(
-          onPressed: onSettings,
+          onPressed: widget.onSettings,
           icon: const Icon(Icons.menu_book),
           tooltip: 'Story Settings',
           visualDensity: VisualDensity.compact,

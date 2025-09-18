@@ -805,9 +805,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         debugPrint('✅ UI state updated with new catalog');
       }
 
-      // Step 3: Refresh any failed cover images now that we're connected
+      // Step 3: Refresh any failed cover images now that we're connected (preserve cache)
       debugPrint('🖼️ Refreshing failed cover images after reconnection...');
-      await CachedCoverImage.refreshFailedImages();
+      await CachedCoverImage.refreshFailedImages(preserveCache: true);
       debugPrint('✅ Failed images refresh completed');
 
       // Stop the timer since we're now connected

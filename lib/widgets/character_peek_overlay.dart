@@ -255,6 +255,16 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                         textAlign: TextAlign.center,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'You may find a little information to a lot... it varies greatly!',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ] else if (_isLoading) ...[
                     // Loading state
                     const SizedBox(
