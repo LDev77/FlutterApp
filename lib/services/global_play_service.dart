@@ -167,14 +167,32 @@ class GlobalPlayService {
 
       final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
       if (playthroughMetadata != null) {
-        final updated = playthroughMetadata.copyWith(
-          currentTurn: turnCount,
-          totalTurns: turnCount,
-          tokensSpent: playthroughMetadata.tokensSpent + tokenCost,
-          lastPlayedAt: DateTime.now(),
-          status: 'ready',
-        );
-        await IFEStateManager.savePlaythroughMetadata(updated);
+        // Check if this is a story ending
+        if (response.ends) {
+          debugPrint('DEBUG: Story ended - setting status to completed');
+          // Manually update playthrough to preserve last user input
+          final updated = playthroughMetadata.copyWith(
+            currentTurn: turnCount,
+            totalTurns: turnCount,
+            tokensSpent: playthroughMetadata.tokensSpent + tokenCost,
+            lastPlayedAt: DateTime.now(),
+            status: 'completed',
+            isCompleted: true,
+            endingDescription: 'Story completed',
+            lastUserInput: input, // Preserve the final input that caused the ending
+            lastInputTime: DateTime.now(),
+          );
+          await IFEStateManager.savePlaythroughMetadata(updated);
+        } else {
+          final updated = playthroughMetadata.copyWith(
+            currentTurn: turnCount,
+            totalTurns: turnCount,
+            tokensSpent: playthroughMetadata.tokensSpent + tokenCost,
+            lastPlayedAt: DateTime.now(),
+            status: 'ready',
+          );
+          await IFEStateManager.savePlaythroughMetadata(updated);
+        }
       }
       
       debugPrint('DEBUG: Story $storyId now has $turnCount total turns');
@@ -227,12 +245,19 @@ class GlobalPlayService {
     if (savedPlaythrough != null) {
       debugPrint('Local storage turns: ${savedPlaythrough.turnHistory.length}');
       debugPrint('Last turn number: ${savedPlaythrough.turnHistory.last.turnNumber}');
-      debugPrint('Last turn has narrative: ${savedPlaythrough.turnHistory.last.narrativeMarkdown.isNotEmpty}');
-      debugPrint('Last turn has options: ${savedPlaythrough.turnHistory.last.availableOptions.isNotEmpty}');
       debugPrint('Last turn input: "${savedPlaythrough.turnHistory.last.userInput}"');
       debugPrint('Last turn timestamp: ${savedPlaythrough.turnHistory.last.timestamp}');
     } else {
       debugPrint('No local storage found for story');
+    }
+
+    // Check PlaythroughMetadata (RAW OBJECT)
+    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, 'main');
+    if (playthroughMetadata != null) {
+      debugPrint('RAW PLAYTHROUGH METADATA:');
+      debugPrint(playthroughMetadata.toString());
+    } else {
+      debugPrint('No playthrough metadata found');
     }
     
     debugPrint('=== END DEBUG ===');

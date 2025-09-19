@@ -61,9 +61,7 @@ class _PaymentSuccessModalState extends State<PaymentSuccessModal>
             child: Container(
               height: MediaQuery.of(context).size.height * 0.85,
               width: double.infinity,
-              child: GestureDetector(
-                onTap: () {}, // Prevent closing when tapping on modal content
-                child: AlertDialog(
+              child: AlertDialog(
                   contentPadding: const EdgeInsets.all(0),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -257,7 +255,6 @@ class _PaymentSuccessModalState extends State<PaymentSuccessModal>
                 ),
               ),
             ),
-          ),
         ),
       ),
     );

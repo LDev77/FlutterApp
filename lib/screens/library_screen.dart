@@ -602,11 +602,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget _buildChipsRow(CatalogStory story, StoryMetadata? metadata) {
     final chips = <Widget>[];
 
+    // Check if any playthrough is completed
+    final playthroughs = IFEStateManager.getStoryPlaythroughs(story.storyId);
+    final hasCompletedPlaythrough = playthroughs.any((p) => p.status == 'completed');
+
+    // Completed chip (blue color) - highest priority
+    if (hasCompletedPlaythrough) {
+      chips.add(_buildChip('Completed', Colors.blue));
+    }
+
     // Recent chip (green color)
     if (metadata != null &&
         metadata.lastPlayedAt != null &&
         DateTime.now().difference(metadata.lastPlayedAt!).inDays < 7 &&
-        !metadata.isCompleted) {
+        !hasCompletedPlaythrough) { // Don't show Recent if already completed
       chips.add(_buildChip('Recent', Colors.green));
     }
 

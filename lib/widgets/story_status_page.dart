@@ -31,6 +31,8 @@ class StoryStatusPage extends StatelessWidget {
         return 'Error';
       case 'ended':
         return 'Complete';
+      case 'completed':
+        return 'Story Complete';
       default:
         return 'Ready';
     }
@@ -39,8 +41,10 @@ class StoryStatusPage extends StatelessWidget {
   Widget _buildStatusContent(BuildContext context) {
     return Stack(
       children: [
-        // User input at top (blue box)
-        if (metadata.userInput != null && metadata.userInput!.isNotEmpty)
+        // User input at top (blue box) - hide for completed status
+        if (metadata.userInput != null &&
+            metadata.userInput!.isNotEmpty &&
+            metadata.status != 'completed')
           Positioned(
             top: 20,
             left: 20,
@@ -156,7 +160,56 @@ class StoryStatusPage extends StatelessWidget {
             ],
           ),
         );
-      
+
+      case 'completed':
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+          ),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.check_circle,
+                size: 60,
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Story Complete!',
+                style: TextStyle(
+                  color: Colors.blue.shade700,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (message.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Colors.blue.shade600,
+                    fontSize: 16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: onGoBack,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Back to Library'),
+              ),
+            ],
+          ),
+        );
+
       default:
         return const SizedBox.shrink();
     }

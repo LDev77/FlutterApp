@@ -76,7 +76,7 @@ class PaymentErrorModal extends StatelessWidget {
                         child: ElevatedButton(
                           onPressed: onClose,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
+                            backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(

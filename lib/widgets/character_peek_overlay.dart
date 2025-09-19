@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
-import 'package:flutter_3d_carousel/flutter_3d_carousel.dart';
 import '../models/api_models.dart';
 import '../services/character_name_parser.dart';
 import '../services/peek_service.dart';
+import '../icons/custom_icons.dart';
 
 /// Modal overlay for displaying character peek information
 /// Similar to StorySettingsOverlay but for character insights
@@ -29,22 +29,48 @@ class CharacterPeekOverlay extends StatefulWidget {
   State<CharacterPeekOverlay> createState() => _CharacterPeekOverlayState();
 }
 
-class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
+class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
+    with SingleTickerProviderStateMixin {
   bool _isLoading = false;
   Peek? _currentPeek;
   String? _errorMessage;
   List<Peek> _revealedCharacters = [];
   int _currentCarouselIndex = 0;
 
+  // Animation controller for pulsing glow effect
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
     _currentPeek = widget.tappedCharacter;
+
+    // Check which characters already have peek data (mind/thoughts)
+    _revealedCharacters = widget.allAvailableCharacters
+        .where((character) => CharacterNameParser.isPeekDataPopulated(character))
+        .toList();
+
     // Set initial carousel index to the tapped character
-    _currentCarouselIndex = widget.allAvailableCharacters.indexWhere(
+    final displayCharacters = _getDisplayCharacters();
+    _currentCarouselIndex = displayCharacters.indexWhere(
       (character) => character.name == widget.tappedCharacter.name,
     );
     if (_currentCarouselIndex == -1) _currentCarouselIndex = 0;
+
+    // Initialize pulsing animation
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _pulseAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+    _pulseController.repeat(reverse: true);
   }
 
   Future<void> _requestPeekData() async {
@@ -103,26 +129,33 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
     }
   }
 
-  /// Switch to viewing a different revealed character
-  void _switchToCharacter(Peek character) {
-    final index = _revealedCharacters.indexWhere(
-      (c) => c.name == character.name,
-    );
-    setState(() {
-      _currentPeek = character;
-      if (index != -1) {
-        _currentCarouselIndex = index;
-      }
-    });
+
+  /// Get the list of characters to display (either revealed or all available)
+  List<Peek> _getDisplayCharacters() {
+    return _revealedCharacters.isNotEmpty ? _revealedCharacters : widget.allAvailableCharacters;
   }
 
-  /// Handle carousel value changes to switch characters
-  void _onCarouselChanged(double value) {
-    final index = value.round();
-    if (index >= 0 && index < _revealedCharacters.length) {
+  /// Get previous character index with wrap-around
+  int _getPreviousIndex() {
+    final characters = _getDisplayCharacters();
+    if (characters.isEmpty) return 0;
+    return (_currentCarouselIndex - 1 + characters.length) % characters.length;
+  }
+
+  /// Get next character index with wrap-around
+  int _getNextIndex() {
+    final characters = _getDisplayCharacters();
+    if (characters.isEmpty) return 0;
+    return (_currentCarouselIndex + 1) % characters.length;
+  }
+
+  /// Switch to character at specific index
+  void _switchToIndex(int index) {
+    final characters = _getDisplayCharacters();
+    if (index >= 0 && index < characters.length) {
       setState(() {
         _currentCarouselIndex = index;
-        _currentPeek = _revealedCharacters[index];
+        _currentPeek = characters[index];
       });
     }
   }
@@ -130,6 +163,22 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
   /// Combine mind and thoughts into single markdown text with separator
   String _buildPeekContent() {
     if (_currentPeek == null) return '';
+
+    // If current character has no data but others do, find one with data
+    if (!CharacterNameParser.isPeekDataPopulated(_currentPeek!) && _revealedCharacters.isNotEmpty) {
+      final peekWithData = _revealedCharacters.first;
+      final parts = <String>[];
+
+      if (peekWithData.mind != null && peekWithData.mind!.isNotEmpty) {
+        parts.add(peekWithData.mind!);
+      }
+
+      if (peekWithData.thoughts != null && peekWithData.thoughts!.isNotEmpty) {
+        parts.add(peekWithData.thoughts!);
+      }
+
+      return parts.isEmpty ? '' : parts.join('\n\n---\n\n');
+    }
 
     final parts = <String>[];
 
@@ -145,6 +194,119 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
 
     // Join with separator if both exist
     return parts.join('\n\n---\n\n');
+  }
+
+  /// Build the character carousel header with pulsing glow effect
+  Widget _buildCharacterCarousel() {
+    final characters = _getDisplayCharacters();
+    if (characters.isEmpty) {
+      return Text(
+        'Character',
+        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+        textAlign: TextAlign.center,
+      );
+    }
+
+    if (characters.length == 1) {
+      // Single character - show with subtle pulsing text glow
+      return AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Text(
+            CharacterNameParser.getDisplayName(characters[0].name),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+              shadows: [
+                Shadow(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1 + (_pulseAnimation.value * 0.3)),
+                  blurRadius: 2 + (_pulseAnimation.value * 3),
+                ),
+              ],
+            ),
+            textAlign: TextAlign.center,
+          );
+        },
+      );
+    }
+
+    // Multiple characters - carousel layout
+    return SizedBox(
+      height: 50,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Previous character (for 3+)
+          if (characters.length >= 3) ...[
+            Expanded(
+              flex: 1,
+              child: GestureDetector(
+                onTap: () => _switchToIndex(_getPreviousIndex()),
+                child: Text(
+                  CharacterNameParser.getDisplayName(characters[_getPreviousIndex()].name),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    fontWeight: FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+          ],
+
+          // Current character with subtle pulsing text glow
+          Expanded(
+            flex: characters.length >= 3 ? 2 : 3,
+            child: AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Text(
+                  CharacterNameParser.getDisplayName(characters[_currentCarouselIndex].name),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
+                    shadows: [
+                      Shadow(
+                        color: Theme.of(context).primaryColor.withOpacity(0.1 + (_pulseAnimation.value * 0.3)),
+                        blurRadius: 2 + (_pulseAnimation.value * 3),
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                );
+              },
+            ),
+          ),
+
+          // Next character
+          if (characters.length >= 2) ...[
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 1,
+              child: GestureDetector(
+                onTap: () => _switchToIndex(_getNextIndex()),
+                child: Text(
+                  CharacterNameParser.getDisplayName(characters[_getNextIndex()].name),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    fontWeight: FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.left,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   /// Create a proper sentence for revealing character minds
@@ -177,8 +339,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = CharacterNameParser.getDisplayName(widget.tappedCharacter.name);
-    final isPopulated = CharacterNameParser.isPeekDataPopulated(_currentPeek!);
+    final hasAnyRevealedData = _revealedCharacters.isNotEmpty;
 
     return Material(
       color: Colors.black.withOpacity(0.5),
@@ -207,14 +368,8 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header
-                  Text(
-                    displayName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  // Character Carousel Header
+                  _buildCharacterCarousel(),
 
                   const SizedBox(height: 20),
 
@@ -237,7 +392,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                   ],
 
                   // Content based on peek data state
-                  if (!isPopulated && !_isLoading) ...[
+                  if (!hasAnyRevealedData && !_isLoading) ...[
                     // Button mode: not populated, prompt to peek
                     ElevatedButton(
                       onPressed: _requestPeekData,
@@ -249,10 +404,26 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text(
-                        _createRevealSentence(),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.center,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _createRevealSentence(),
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              CustomIcons.coin,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -273,7 +444,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                         child: CircularProgressIndicator(),
                       ),
                     ),
-                  ] else ...[
+                  ] else if (hasAnyRevealedData) ...[
                     // Content mode: show combined mind and thoughts in scrollable markdown
                     Container(
                       constraints: const BoxConstraints(
@@ -296,62 +467,6 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
                       ),
                     ),
 
-                    // Show 3D carousel for character selection if multiple characters available
-                    if (_revealedCharacters.length > 1) ...[
-                      const SizedBox(height: 20),
-                      Text(
-                        'Switch between revealed characters:',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 80,
-                        child: CarouselWidget3D(
-                          radius: MediaQuery.of(context).size.width * 0.4,
-                          childScale: 0.8,
-                          dragEndBehavior: DragEndBehavior.snapToNearest,
-                          isDragInteractive: true,
-                          clockwise: true,
-                          onValueChanged: _onCarouselChanged,
-                          children: _revealedCharacters.map((character) {
-                            final isSelected = character.name == _currentPeek!.name;
-                            return CarouselChild(
-                              child: GestureDetector(
-                                onTap: () => _switchToCharacter(character),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? Theme.of(context).primaryColor
-                                        : Theme.of(context).primaryColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Theme.of(context).primaryColor.withOpacity(0.3),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    CharacterNameParser.getDisplayName(character.name),
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Theme.of(context).primaryColor,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ],
                   ],
 
                   const SizedBox(height: 20),
@@ -374,5 +489,11 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 }

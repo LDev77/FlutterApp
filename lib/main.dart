@@ -4,6 +4,7 @@ import 'services/state_manager.dart';
 import 'services/theme_service.dart';
 import 'services/background_data_service.dart';
 import 'services/token_purchase_service.dart';
+import 'services/debug_service.dart';
 import 'screens/library_screen.dart';
 import 'widgets/smooth_scroll_behavior.dart';
 
@@ -15,6 +16,9 @@ void main() async {
 
   // Initialize storage
   await IFEStateManager.initialize();
+
+  // Initialize debug service (persistent debug helpers)
+  DebugService.initialize();
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(

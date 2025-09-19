@@ -15,6 +15,8 @@ import '../services/global_play_service.dart';
 import '../services/catalog_service.dart';
 import '../services/peek_service.dart';
 import '../services/connectivity_service.dart';
+import '../services/story_storage_manager.dart';
+import '../services/debug_service.dart';
 import 'info_modal_screen.dart';
 
 class StoryReaderScreen extends StatefulWidget {
@@ -57,6 +59,29 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
     if (mounted) {
       Navigator.pop(context);
+    }
+  }
+
+  /// Handle restarting a completed story
+  Future<void> _handleRestartStory() async {
+    try {
+      // Delete the current playthrough using the story storage manager
+      await StoryStorageManager.deleteEntirePlaythrough(widget.story.id, playthroughId: 'main');
+
+      // Initialize a new story (same as "Play For Free" button)
+      await _initializeNewStory();
+
+      // Navigate to page 1 (first turn page)
+      _pageController.jumpToPage(1);
+
+    } catch (e) {
+      debugPrint('Error restarting story: $e');
+      // Show error to user if needed
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to restart story. Please try again.')),
+        );
+      }
     }
   }
 
@@ -271,6 +296,13 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   currentTurn: _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.currentTurnIndex + 1,
                   totalTurns: _playthrough!.turnHistory.isEmpty ? 1 : _playthrough!.numberOfTurns,
                   isNewStory: _playthrough!.turnHistory.isEmpty,
+                  isCompleted: () {
+                    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+                    return playthroughMetadata?.status == 'completed';
+                  }(),
+                  onRestart: () async {
+                    await _handleRestartStory();
+                  },
                   onContinue: () async {
                     // For new stories (empty turnHistory), initialize first
                     if (_playthrough!.turnHistory.isEmpty) {
@@ -315,24 +347,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                   return StoryStatusPage(
                     metadata: displayMetadata,
                     onGoBack: () async {
-                      // Restore user input before clearing status
-                      final lastInput = displayMetadata?.userInput;
-                      // Clear playthrough status
-                      final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
-                      if (playthroughMetadata != null) {
-                        final updated = playthroughMetadata.copyWith(
-                          status: 'ready',
-                          statusMessage: null,
-                          lastUserInput: null,
-                        );
-                        await IFEStateManager.savePlaythroughMetadata(updated);
+                      // For completed stories, go directly to library
+                      if (displayMetadata?.status == 'completed') {
+                        await _handleBackNavigation();
+                        return;
                       }
-                      _reloadStoryState();
-                      
-                      // Restore the input text so user doesn't have to retype
-                      if (lastInput != null && lastInput.isNotEmpty) {
-                        _inputController.text = lastInput;
-                      }
+
+                      // For other statuses (exception/message), user should retry or navigate away
+                      // No direct status manipulation allowed - let the user retry their input
+                      // or go back to library if they don't want to continue
+                      await _handleBackNavigation();
                     },
                     onRetry: displayMetadata?.userInput != null
                         ? () async => await _handleApiStoryInput(displayMetadata!.userInput!)
@@ -747,21 +771,21 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       // Reload the story state from local storage
       await _reloadStoryState();
       
-      // Brief delay to show success message, then set to ready
+      // Brief delay to show success message, then clear it
       await Future.delayed(const Duration(seconds: 1));
       if (mounted) {
-        // Clear playthrough status
+        // Only clear status if it's a temporary 'message' status - DO NOT touch 'completed'
         final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
-        if (playthroughMetadata != null) {
+        if (playthroughMetadata != null && playthroughMetadata.status == 'message') {
           final updated = playthroughMetadata.copyWith(
             status: 'ready',
             statusMessage: null,
             lastUserInput: null,
           );
           await IFEStateManager.savePlaythroughMetadata(updated);
+          // Reload again to show final state without status page
+          await _reloadStoryState();
         }
-        // Reload again to show final state without status page
-        await _reloadStoryState();
       }
     }
     

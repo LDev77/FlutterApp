@@ -45,18 +45,8 @@ class StorySettingsOverlay extends StatefulWidget {
 class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
   bool _isDeleting = false;
 
-  /// Reset playthrough status to ready and clear any status messages
-  Future<void> _resetStatusToReady() async {
-    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.storyId, 'main');
-    if (playthroughMetadata != null && playthroughMetadata.status != 'ready') {
-      final updated = playthroughMetadata.copyWith(
-        status: 'ready',
-        statusMessage: null,
-        lastUserInput: null,
-      );
-      await IFEStateManager.savePlaythroughMetadata(updated);
-    }
-  }
+  // REMOVED: _resetStatusToReady() - This was bypassing proper state management
+  // Status should only be changed through authorized functions in StateManager
 
   @override
   Widget build(BuildContext context) {
@@ -303,9 +293,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                         ),
                       ),
                       subtitle: Text(
-                        canDelete 
-                            ? (hasTurns ? 'Remove turn $turnCount' : 'No turns to delete')
-                            : 'Story must be ready',
+                        hasTurns ? 'Remove turn $turnCount' : 'No turns to delete',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,
@@ -336,9 +324,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                         ),
                       ),
                       subtitle: Text(
-                        canDelete 
-                            ? 'Remove all progress and start fresh'
-                            : 'Story must be ready',
+                        'Remove all progress and start fresh',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,
@@ -461,8 +447,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
 
       final success = await StoryStorageManager.deleteLastTurn(widget.storyId);
       if (success) {
-        // Reset status to ready to clear any pending status page
-        await _resetStatusToReady();
+        // Status is handled properly by StoryStorageManager.deleteLastTurn
 
         // Update the story state
         widget.onSettingsChanged();
@@ -514,8 +499,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
     try {
       final success = await StoryStorageManager.deleteEntirePlaythrough(widget.storyId);
       if (success) {
-        // Reset status to ready to clear any pending status page
-        await _resetStatusToReady();
+        // Playthrough is completely deleted - no status to reset
 
         // Update the story state
         widget.onSettingsChanged();

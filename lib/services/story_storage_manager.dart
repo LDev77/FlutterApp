@@ -30,6 +30,9 @@ class StoryStorageManager {
             currentTurn: updatedHistory.length,
             totalTurns: updatedHistory.length,
             lastPlayedAt: DateTime.now(),
+            status: 'ready', // Reset status to ready when deleting turns
+            isCompleted: false, // Reset completion flag
+            endingDescription: null, // Clear ending description
           );
           await IFEStateManager.savePlaythroughMetadata(updated);
         }
@@ -69,10 +72,11 @@ class StoryStorageManager {
   }
   
   /// Check if story is in a state that allows deletion operations
-  /// Only allow deletions when status is 'ready' to avoid conflicts
+  /// Check if deletion operations are possible (always true if story exists)
   static bool canPerformDeletion(String storyId) {
-    final metadata = IFEStateManager.getStoryMetadata(storyId);
-    return metadata?.status == 'ready' || metadata?.status == null;
+    // Users should be able to manage their playthrough data regardless of status
+    // Deletion operations are always safe and don't cause conflicts
+    return true;
   }
   
   /// Get turn count for display purposes

@@ -11,6 +11,8 @@ class CoverPage extends StatefulWidget {
   final VoidCallback onContinue;
   final VoidCallback onClose;
   final bool isNewStory;
+  final bool isCompleted;
+  final VoidCallback? onRestart;
 
   const CoverPage({
     super.key,
@@ -20,6 +22,8 @@ class CoverPage extends StatefulWidget {
     required this.onContinue,
     required this.onClose,
     this.isNewStory = false,
+    this.isCompleted = false,
+    this.onRestart,
   });
 
   @override
@@ -265,6 +269,80 @@ class _CoverPageState extends State<CoverPage> {
                           size: 16,
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // Restart button for completed stories - centered at bottom
+            if (widget.isCompleted && widget.onRestart != null)
+              Positioned(
+                bottom: bottomPadding + 26,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () async {
+                      // Show confirmation dialog
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Restart Story'),
+                          content: const Text('Do you wish to restart? This will erase your current playthrough!'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Restart'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true) {
+                        widget.onRestart!();
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.restart_alt,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Restart',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
