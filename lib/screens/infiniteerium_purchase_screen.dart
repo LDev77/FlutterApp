@@ -18,6 +18,7 @@ class InfiniteeriumPurchaseScreen extends StatefulWidget {
 class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScreen> {
   bool _isLoading = false;
   TokenPack? _currentPurchase;
+  bool _serviceInitialized = false;
   
   final List<TokenPack> _tokenPacks = [
     TokenPack(
@@ -57,6 +58,34 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
       isPopular: false,
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePurchaseService();
+  }
+
+  Future<void> _initializePurchaseService() async {
+    try {
+      if (!TokenPurchaseService.instance.isInitialized) {
+        final initialized = await TokenPurchaseService.instance.initialize();
+        setState(() {
+          _serviceInitialized = initialized;
+        });
+        if (initialized) {
+          debugPrint('Purchase service initialized with ${TokenPurchaseService.instance.availableProducts.length} products');
+        } else {
+          debugPrint('Purchase service initialization failed');
+        }
+      } else {
+        setState(() {
+          _serviceInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error initializing purchase service: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,43 +141,43 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
           // Footer info
           _buildFooterInfo(),
 
-          // Test buttons for UX preview
-          Container(
-            margin: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _showTestSuccessDialog(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('TEST SUCCESS UX'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _showTestLottieDialog(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('TEST LOTTIE'),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Test buttons for UX preview - COMMENTED OUT FOR PRODUCTION
+          // Container(
+          //   margin: const EdgeInsets.all(16),
+          //   child: Row(
+          //     children: [
+          //       Expanded(
+          //         child: ElevatedButton(
+          //           onPressed: () => _showTestSuccessDialog(),
+          //           style: ElevatedButton.styleFrom(
+          //             backgroundColor: Colors.orange,
+          //             foregroundColor: Colors.white,
+          //             padding: const EdgeInsets.symmetric(vertical: 12),
+          //             shape: RoundedRectangleBorder(
+          //               borderRadius: BorderRadius.circular(8),
+          //             ),
+          //           ),
+          //           child: const Text('TEST SUCCESS UX'),
+          //         ),
+          //       ),
+          //       const SizedBox(width: 12),
+          //       Expanded(
+          //         child: ElevatedButton(
+          //           onPressed: () => _showTestLottieDialog(),
+          //           style: ElevatedButton.styleFrom(
+          //             backgroundColor: Colors.purple,
+          //             foregroundColor: Colors.white,
+          //             padding: const EdgeInsets.symmetric(vertical: 12),
+          //             shape: RoundedRectangleBorder(
+          //               borderRadius: BorderRadius.circular(8),
+          //             ),
+          //           ),
+          //           child: const Text('TEST LOTTIE'),
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
         ],
       ),
     );
@@ -274,7 +303,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () => _purchaseTokenPack(pack),
+              onTap: _serviceInitialized ? () => _purchaseTokenPack(pack) : null,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -333,11 +362,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          pack.price,
-                          style: const TextStyle(
+                          _getDisplayPrice(pack),
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Colors.purple,
+                            color: _serviceInitialized ? Colors.purple : Colors.grey,
                           ),
                         ),
                         if (pack.tokens >= 25) ...[
@@ -407,7 +436,9 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'All purchases are secure and processed through your app store.',
+                  _serviceInitialized
+                    ? 'All purchases are secure and processed through your app store.'
+                    : 'Connecting to app store...',
                   style: TextStyle(
                     fontSize: 14,
                     color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
@@ -429,6 +460,17 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
 
   double _getPriceValue(String price) {
     return double.parse(price.replaceAll('\$', ''));
+  }
+
+  String _getDisplayPrice(TokenPack pack) {
+    // Try to get real store price first, fallback to hardcoded price
+    if (TokenPurchaseService.instance.isInitialized) {
+      final storePrice = TokenPurchaseService.instance.getFormattedPrice(pack.id);
+      if (storePrice != 'N/A') {
+        return storePrice;
+      }
+    }
+    return pack.price; // Fallback to hardcoded price
   }
 
   Future<void> _purchaseTokenPack(TokenPack pack) async {
@@ -476,12 +518,9 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         ),
       );
 
-      // Initialize service if needed
-      if (!TokenPurchaseService.instance.isInitialized) {
-        final initialized = await TokenPurchaseService.instance.initialize();
-        if (!initialized) {
-          throw Exception('Failed to initialize purchase service');
-        }
+      // Check if service is initialized
+      if (!_serviceInitialized) {
+        throw Exception('Purchase service not available');
       }
 
       // Attempt purchase
@@ -595,19 +634,29 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     );
   }
 
-  void _showTestSuccessDialog() {
+  void _showTestSuccessDialog() async {
+    final currentTokens = IFEStateManager.getTokens() ?? 0;
+    final testPack = TokenPack(
+      id: 'tokens_popular_25',
+      name: 'Popular Pack',
+      tokens: 25,
+      price: '\$6.99',
+      description: 'Most popular choice',
+      color: Colors.purple,
+      isPopular: true,
+    );
+
+    // Actually add the tokens for testing purposes
+    final newBalance = currentTokens + testPack.tokens;
+    await IFEStateManager.saveTokens(newBalance);
+
+    // Refresh UI
+    setState(() {});
+
     _showPurchaseSuccessDialog(
-      TokenPack(
-        id: 'tokens_popular_25',
-        name: 'Popular Pack',
-        tokens: 25,
-        price: '\$6.99',
-        description: 'Most popular choice',
-        color: Colors.purple,
-        isPopular: true,
-      ),
-      25, // tokens added
-      78, // new balance
+      testPack,
+      testPack.tokens, // actual tokens from pack
+      newBalance, // actual new balance
     );
   }
 
