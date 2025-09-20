@@ -299,6 +299,81 @@ class IFEStateManager {
     }
   }
 
+  // PEEK DATA MANAGEMENT - Proper encapsulation of peek data mutations and access
+
+  /// Save peek data for a specific turn (replaces direct updateTurnPeekData calls)
+  static Future<void> saveTurnPeekData(
+    String storyId,
+    String playthroughId,
+    int turnNumber,
+    List<Peek> peekData,
+  ) async {
+    await _updateTurnPeekData(storyId, playthroughId, turnNumber, peekData);
+  }
+
+  /// Get peek data for a specific turn
+  static Future<List<Peek>> getTurnPeekData(
+    String storyId,
+    String playthroughId,
+    int turnNumber,
+  ) async {
+    try {
+      final turns = loadTurns(storyId, playthroughId);
+      final turn = turns.firstWhere(
+        (t) => t.turnNumber == turnNumber,
+        orElse: () => throw Exception('Turn $turnNumber not found'),
+      );
+      return turn.peekAvailable;
+    } catch (e) {
+      debugPrint('Error getting peek data for turn $turnNumber: $e');
+      return [];
+    }
+  }
+
+  /// Check if a turn has any peekable characters
+  static Future<bool> turnHasPeekableCharacters(
+    String storyId,
+    String playthroughId,
+    int turnNumber,
+  ) async {
+    try {
+      final peekData = await getTurnPeekData(storyId, playthroughId, turnNumber);
+      return peekData.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking peekable characters for turn $turnNumber: $e');
+      return false;
+    }
+  }
+
+  /// Check if peek data has been populated (has mind/thoughts)
+  static bool isPeekDataPopulated(List<Peek> peeks) {
+    return peeks.any((peek) => peek.mind != null || peek.thoughts != null);
+  }
+
+  /// Check if a single peek object has been populated (has mind/thoughts)
+  static bool isSinglePeekPopulated(Peek peek) {
+    return peek.mind != null || peek.thoughts != null;
+  }
+
+  /// Get peek data for a specific character in a turn
+  static Future<Peek?> getCharacterPeekData(
+    String storyId,
+    String playthroughId,
+    int turnNumber,
+    String characterName,
+  ) async {
+    try {
+      final peekData = await getTurnPeekData(storyId, playthroughId, turnNumber);
+      return peekData.firstWhere(
+        (peek) => peek.name == characterName,
+        orElse: () => throw Exception('Character not found'),
+      );
+    } catch (e) {
+      debugPrint('Error getting peek data for character $characterName in turn $turnNumber: $e');
+      return null;
+    }
+  }
+
   /// Mark playthrough as completed
   static Future<void> completePlaythrough(
     String storyId,
@@ -679,8 +754,8 @@ class IFEStateManager {
   }
   
   // Clear all data for testing
-  /// Update peek data for a specific turn
-  static Future<void> updateTurnPeekData(String storyId, String playthroughId, int turnNumber, List<Peek> peekData) async {
+  /// Internal method to update peek data for a specific turn (use saveTurnPeekData instead)
+  static Future<void> _updateTurnPeekData(String storyId, String playthroughId, int turnNumber, List<Peek> peekData) async {
     final box = Hive.box(_turnsBoxName);
     final key = 'turn_${storyId}_${playthroughId}_$turnNumber';
 

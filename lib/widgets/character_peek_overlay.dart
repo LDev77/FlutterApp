@@ -3,6 +3,7 @@ import 'package:markdown_widget/markdown_widget.dart';
 import '../models/api_models.dart';
 import '../services/character_name_parser.dart';
 import '../services/peek_service.dart';
+import '../services/state_manager.dart';
 import '../icons/custom_icons.dart';
 
 /// Modal overlay for displaying character peek information
@@ -45,18 +46,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
   void initState() {
     super.initState();
     _currentPeek = widget.tappedCharacter;
-
-    // Check which characters already have peek data (mind/thoughts)
-    _revealedCharacters = widget.allAvailableCharacters
-        .where((character) => CharacterNameParser.isPeekDataPopulated(character))
-        .toList();
-
-    // Set initial carousel index to the tapped character
-    final displayCharacters = _getDisplayCharacters();
-    _currentCarouselIndex = displayCharacters.indexWhere(
-      (character) => character.name == widget.tappedCharacter.name,
-    );
-    if (_currentCarouselIndex == -1) _currentCarouselIndex = 0;
+    _initializeWithLatestData();
 
     // Initialize pulsing animation
     _pulseController = AnimationController(
@@ -73,8 +63,67 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
     _pulseController.repeat(reverse: true);
   }
 
+  /// Initialize with the latest peek data from storage
+  Future<void> _initializeWithLatestData() async {
+    try {
+      // Get fresh peek data from storage for this turn using state manager
+      final latestPeekData = await IFEStateManager.getTurnPeekData(
+        widget.storyId,
+        widget.playthroughId,
+        widget.turnNumber,
+      );
+
+      // If we have stored peek data, use it; otherwise use the original data
+      final allCharacters = latestPeekData.isNotEmpty ? latestPeekData : widget.allAvailableCharacters;
+
+      // Check which characters already have peek data (mind/thoughts)
+      _revealedCharacters = allCharacters
+          .where((character) => IFEStateManager.isSinglePeekPopulated(character))
+          .toList();
+
+      // Find the current character in the latest data
+      final updatedCurrentCharacter = allCharacters.firstWhere(
+        (character) => character.name == widget.tappedCharacter.name,
+        orElse: () => widget.tappedCharacter,
+      );
+      _currentPeek = updatedCurrentCharacter;
+
+      // Set initial carousel index to the tapped character
+      final displayCharacters = _getDisplayCharacters();
+      _currentCarouselIndex = displayCharacters.indexWhere(
+        (character) => character.name == widget.tappedCharacter.name,
+      );
+      if (_currentCarouselIndex == -1) _currentCarouselIndex = 0;
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      // Fallback to original behavior if there's an error
+      _revealedCharacters = widget.allAvailableCharacters
+          .where((character) => IFEStateManager.isSinglePeekPopulated(character))
+          .toList();
+
+      final displayCharacters = _getDisplayCharacters();
+      _currentCarouselIndex = displayCharacters.indexWhere(
+        (character) => character.name == widget.tappedCharacter.name,
+      );
+      if (_currentCarouselIndex == -1) _currentCarouselIndex = 0;
+
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
   Future<void> _requestPeekData() async {
     if (_isLoading) return;
+
+    // Check if current character already has populated data
+    if (_currentPeek != null && IFEStateManager.isSinglePeekPopulated(_currentPeek!)) {
+      // Data already available, no need to call API
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -99,6 +148,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
         (peek) => peek.name == widget.tappedCharacter.name,
         orElse: () => widget.tappedCharacter,
       );
+      _currentPeek = updatedPeek;
 
       // Update carousel index to match the current character
       _currentCarouselIndex = _revealedCharacters.indexWhere(
@@ -165,7 +215,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
     if (_currentPeek == null) return '';
 
     // If current character has no data but others do, find one with data
-    if (!CharacterNameParser.isPeekDataPopulated(_currentPeek!) && _revealedCharacters.isNotEmpty) {
+    if (!IFEStateManager.isSinglePeekPopulated(_currentPeek!) && _revealedCharacters.isNotEmpty) {
       final peekWithData = _revealedCharacters.first;
       final parts = <String>[];
 
@@ -340,6 +390,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
   @override
   Widget build(BuildContext context) {
     final hasAnyRevealedData = _revealedCharacters.isNotEmpty;
+    final currentCharacterHasData = _currentPeek != null && IFEStateManager.isSinglePeekPopulated(_currentPeek!);
 
     return Material(
       color: Colors.black.withOpacity(0.5),
@@ -392,7 +443,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
                   ],
 
                   // Content based on peek data state
-                  if (!hasAnyRevealedData && !_isLoading) ...[
+                  if (!currentCharacterHasData && !_isLoading) ...[
                     // Button mode: not populated, prompt to peek
                     ElevatedButton(
                       onPressed: _requestPeekData,
@@ -444,7 +495,7 @@ class _CharacterPeekOverlayState extends State<CharacterPeekOverlay>
                         child: CircularProgressIndicator(),
                       ),
                     ),
-                  ] else if (hasAnyRevealedData) ...[
+                  ] else if (currentCharacterHasData) ...[
                     // Content mode: show combined mind and thoughts in scrollable markdown
                     Container(
                       constraints: const BoxConstraints(

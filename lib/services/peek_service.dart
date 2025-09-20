@@ -28,8 +28,8 @@ class PeekService {
       // Update token balance in local state
       await IFEStateManager.saveTokens(peekResponse.tokenBalance);
 
-      // Update turn data with peek information
-      await IFEStateManager.updateTurnPeekData(
+      // Update turn data with peek information using proper state manager method
+      await IFEStateManager.saveTurnPeekData(
         storyId,
         playthroughId,
         turnNumber,
@@ -53,29 +53,22 @@ class PeekService {
 
   /// Check if a turn has any characters available for peeking
   static Future<bool> hasPeekableCharacters(String storyId, int turnNumber, {String playthroughId = 'main'}) async {
-    try {
-      final turns = IFEStateManager.loadTurns(storyId, playthroughId);
-      final turn = turns.firstWhere((t) => t.turnNumber == turnNumber, orElse: () => throw Exception('Turn not found'));
-      return turn.peekAvailable.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
+    return await IFEStateManager.turnHasPeekableCharacters(storyId, playthroughId, turnNumber);
   }
 
   /// Get peek data for a specific turn (from local storage)
   static Future<List<Peek>> getTurnPeekData(String storyId, int turnNumber, {String playthroughId = 'main'}) async {
-    try {
-      final turns = IFEStateManager.loadTurns(storyId, playthroughId);
-      final turn = turns.firstWhere((t) => t.turnNumber == turnNumber, orElse: () => throw Exception('Turn not found'));
-      return turn.peekAvailable;
-    } catch (e) {
-      return [];
-    }
+    return await IFEStateManager.getTurnPeekData(storyId, playthroughId, turnNumber);
   }
 
   /// Check if specific peek data has been populated (has mind/thoughts)
   static bool isPeekDataPopulated(List<Peek> peeks) {
-    return peeks.any((peek) => peek.mind != null || peek.thoughts != null);
+    return IFEStateManager.isPeekDataPopulated(peeks);
+  }
+
+  /// Get peek data for a specific character in a turn
+  static Future<Peek?> getCharacterPeekData(String storyId, int turnNumber, String characterName, {String playthroughId = 'main'}) async {
+    return await IFEStateManager.getCharacterPeekData(storyId, playthroughId, turnNumber, characterName);
   }
 
   /// Dispose resources
