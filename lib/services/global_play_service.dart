@@ -121,19 +121,12 @@ class GlobalPlayService {
       if (response.noTurnMessage) {
         debugPrint('DEBUG: NoTurnMessage=true - updating playthrough status without saving turn');
 
-        final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
-        if (playthroughMetadata != null) {
-          final updated = playthroughMetadata.copyWith(
-            lastPlayedAt: DateTime.now(),
-            status: 'message',
-            statusMessage: response.narrative,
-            lastUserInput: input, // Preserve user input for restoration
-            lastInputTime: DateTime.now(),
-            // DON'T update currentTurn/totalTurns - this is not a real turn
-            // DON'T charge tokens - API handles token cost for failed requests
-          );
-          await IFEStateManager.savePlaythroughMetadata(updated);
-        }
+        await IFEStateManager.setPlaythroughMessage(
+          storyId,
+          playthroughId,
+          response.narrative,
+          input,
+        );
 
         debugPrint('DEBUG: Playthrough status updated for NoTurnMessage case');
         return; // Exit early - no turn to save
@@ -170,28 +163,33 @@ class GlobalPlayService {
         // Check if this is a story ending
         if (response.ends) {
           debugPrint('DEBUG: Story ended - setting status to completed');
-          // Manually update playthrough to preserve last user input
+          // First update progress with final input and turn data
           final updated = playthroughMetadata.copyWith(
             currentTurn: turnCount,
             totalTurns: turnCount,
             tokensSpent: playthroughMetadata.tokensSpent + tokenCost,
             lastPlayedAt: DateTime.now(),
-            status: 'completed',
-            isCompleted: true,
-            endingDescription: 'Story completed',
             lastUserInput: input, // Preserve the final input that caused the ending
             lastInputTime: DateTime.now(),
           );
           await IFEStateManager.savePlaythroughMetadata(updated);
+
+          // Then use proper function to complete the playthrough
+          await IFEStateManager.completePlaythrough(
+            storyId,
+            playthroughId,
+            endingDescription: 'Story completed',
+          );
         } else {
-          final updated = playthroughMetadata.copyWith(
-            currentTurn: turnCount,
-            totalTurns: turnCount,
-            tokensSpent: playthroughMetadata.tokensSpent + tokenCost,
-            lastPlayedAt: DateTime.now(),
+          // Use proper function to update progress and set status to ready
+          await IFEStateManager.updatePlaythroughProgress(
+            storyId,
+            playthroughId,
+            turnCount,
+            turnCount,
+            tokensSpent: tokenCost,
             status: 'ready',
           );
-          await IFEStateManager.savePlaythroughMetadata(updated);
         }
       }
       

@@ -24,18 +24,11 @@ class StoryStorageManager {
       
       if (updatedHistory.isNotEmpty) {
         // Update playthrough metadata
-        final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(storyId, playthroughId);
-        if (playthroughMetadata != null) {
-          final updated = playthroughMetadata.copyWith(
-            currentTurn: updatedHistory.length,
-            totalTurns: updatedHistory.length,
-            lastPlayedAt: DateTime.now(),
-            status: 'ready', // Reset status to ready when deleting turns
-            isCompleted: false, // Reset completion flag
-            endingDescription: null, // Clear ending description
-          );
-          await IFEStateManager.savePlaythroughMetadata(updated);
-        }
+        await IFEStateManager.resetPlaythroughAfterDeletion(
+          storyId,
+          playthroughId,
+          updatedHistory.length,
+        );
       } else {
         // If no turns left, delete entire story state
         await deleteEntirePlaythrough(storyId, playthroughId: playthroughId);

@@ -688,15 +688,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     _inputFocusNode.unfocus();
 
     // Update playthrough status instead of story status
-    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
-    if (playthroughMetadata != null) {
-      final updated = playthroughMetadata.copyWith(
-        status: 'pending',
-        lastUserInput: input,
-        lastInputTime: DateTime.now(),
-      );
-      await IFEStateManager.savePlaythroughMetadata(updated);
-    }
+    await IFEStateManager.setPlaythroughPending(widget.story.id, 'main', input);
 
     // Navigate to status page that will show pending state
     final statusPageIndex = _getTotalPageCount() - 1;
@@ -777,12 +769,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         // Only clear status if it's a temporary 'message' status - DO NOT touch 'completed'
         final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
         if (playthroughMetadata != null && playthroughMetadata.status == 'message') {
-          final updated = playthroughMetadata.copyWith(
-            status: 'ready',
-            statusMessage: null,
-            lastUserInput: null,
+          await IFEStateManager.setPlaythroughReady(
+            widget.story.id,
+            'main',
+            clearUserInput: true,
+            clearStatusMessage: true,
           );
-          await IFEStateManager.savePlaythroughMetadata(updated);
           // Reload again to show final state without status page
           await _reloadStoryState();
         }

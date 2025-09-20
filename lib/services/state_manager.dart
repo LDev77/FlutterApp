@@ -224,9 +224,84 @@ class IFEStateManager {
     }
   }
   
+  /// Mark playthrough as pending with user input
+  static Future<void> setPlaythroughPending(
+    String storyId,
+    String playthroughId,
+    String userInput,
+  ) async {
+    final existing = getPlaythroughMetadata(storyId, playthroughId);
+    if (existing != null) {
+      final updated = existing.copyWith(
+        status: 'pending',
+        lastUserInput: userInput,
+        lastInputTime: DateTime.now(),
+      );
+      await savePlaythroughMetadata(updated);
+    }
+  }
+
+  /// Set playthrough status to ready and clear temporary fields
+  static Future<void> setPlaythroughReady(
+    String storyId,
+    String playthroughId, {
+    bool clearUserInput = false,
+    bool clearStatusMessage = false,
+  }) async {
+    final existing = getPlaythroughMetadata(storyId, playthroughId);
+    if (existing != null) {
+      final updated = existing.copyWith(
+        status: 'ready',
+        lastUserInput: clearUserInput ? null : existing.lastUserInput,
+        statusMessage: clearStatusMessage ? null : existing.statusMessage,
+      );
+      await savePlaythroughMetadata(updated);
+    }
+  }
+
+  /// Reset playthrough to ready state after deleting turns
+  static Future<void> resetPlaythroughAfterDeletion(
+    String storyId,
+    String playthroughId,
+    int newTurnCount,
+  ) async {
+    final existing = getPlaythroughMetadata(storyId, playthroughId);
+    if (existing != null) {
+      final updated = existing.copyWith(
+        currentTurn: newTurnCount,
+        totalTurns: newTurnCount,
+        lastPlayedAt: DateTime.now(),
+        status: 'ready',
+        isCompleted: false,
+        endingDescription: null,
+      );
+      await savePlaythroughMetadata(updated);
+    }
+  }
+
+  /// Set playthrough status to message (for NoTurnMessage responses)
+  static Future<void> setPlaythroughMessage(
+    String storyId,
+    String playthroughId,
+    String message,
+    String userInput,
+  ) async {
+    final existing = getPlaythroughMetadata(storyId, playthroughId);
+    if (existing != null) {
+      final updated = existing.copyWith(
+        lastPlayedAt: DateTime.now(),
+        status: 'message',
+        statusMessage: message,
+        lastUserInput: userInput,
+        lastInputTime: DateTime.now(),
+      );
+      await savePlaythroughMetadata(updated);
+    }
+  }
+
   /// Mark playthrough as completed
   static Future<void> completePlaythrough(
-    String storyId, 
+    String storyId,
     String playthroughId, {
     String? endingDescription,
   }) async {
