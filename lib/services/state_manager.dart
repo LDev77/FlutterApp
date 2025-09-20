@@ -182,7 +182,13 @@ class IFEStateManager {
     final key = '${storyId}_$playthroughId';
     return box.get(key);
   }
-  
+
+  /// Check if a playthrough is completed
+  static bool isPlaythroughCompleted(String storyId, String playthroughId) {
+    final metadata = getPlaythroughMetadata(storyId, playthroughId);
+    return metadata?.status == 'completed';
+  }
+
   /// Get all playthroughs for a specific story
   static List<PlaythroughMetadata> getStoryPlaythroughs(String storyId) {
     final box = Hive.box<PlaythroughMetadata>(_playthroughBoxName);

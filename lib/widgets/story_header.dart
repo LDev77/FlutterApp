@@ -116,24 +116,24 @@ class _StoryHeaderState extends State<StoryHeader> {
         onPressed: widget.onBack,
       ),
       actions: [
-        // Test button to set completed status
-        IconButton(
-          onPressed: () async {
-            await IFEStateManager.completePlaythrough(
-              widget.story.id,
-              'main',
-              endingDescription: 'Test completion',
-            );
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Status set to completed (test)')),
-              );
-            }
-          },
-          icon: const Icon(Icons.check_circle_outline),
-          tooltip: 'Test Complete Status',
-          visualDensity: VisualDensity.compact,
-        ),
+        // Test button to set completed status - REMOVED
+        // IconButton(
+        //   onPressed: () async {
+        //     await IFEStateManager.completePlaythrough(
+        //       widget.story.id,
+        //       'main',
+        //       endingDescription: 'Test completion',
+        //     );
+        //     if (mounted) {
+        //       ScaffoldMessenger.of(context).showSnackBar(
+        //         const SnackBar(content: Text('Status set to completed (test)')),
+        //       );
+        //     }
+        //   },
+        //   icon: const Icon(Icons.check_circle_outline),
+        //   tooltip: 'Test Complete Status',
+        //   visualDensity: VisualDensity.compact,
+        // ),
         // Settings book icon
         IconButton(
           onPressed: widget.onSettings,

@@ -105,14 +105,18 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       print('Found complete local storage for ${widget.story.id} with ${savedPlaythrough.turnHistory.length} turns');
       _playthrough = savedPlaythrough;
 
-      // Navigate to the last turn (where input cluster is)
-      final lastTurnIndex = _playthrough!.turnHistory.length;
+      // Check if story is completed - if so, go to cover page instead of last turn
+      final isCompleted = IFEStateManager.isPlaythroughCompleted(widget.story.id, 'main');
+      final targetPage = isCompleted ? 0 : _playthrough!.turnHistory.length;
+
+      print('Story ${widget.story.id} completed: $isCompleted, navigating to page $targetPage');
+
       setState(() {
-        _currentPage = lastTurnIndex; // Go to last turn page (with input cluster)
+        _currentPage = targetPage;
       });
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _pageController.jumpToPage(lastTurnIndex); // Instant teleport, no animation
+        _pageController.jumpToPage(targetPage); // Instant teleport, no animation
       });
       return; // Important: return early to avoid the API call path
     } else {
@@ -124,11 +128,18 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       if (doubleCheckPlaythrough != null) {
         print('SAFETY: Found existing data on double-check! Using existing ${doubleCheckPlaythrough.turnHistory.length} turns');
         _playthrough = doubleCheckPlaythrough;
+
+        // Check if story is completed - if so, go to cover page instead of last turn
+        final isCompleted = IFEStateManager.isPlaythroughCompleted(widget.story.id, 'main');
+        final targetPage = isCompleted ? 0 : doubleCheckPlaythrough!.turnHistory.length;
+
+        print('Story ${widget.story.id} completed (safety check): $isCompleted, navigating to page $targetPage');
+
         setState(() {
-          _currentPage = doubleCheckPlaythrough!.turnHistory.length;
+          _currentPage = targetPage;
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _pageController.jumpToPage(doubleCheckPlaythrough!.turnHistory.length);
+          _pageController.jumpToPage(targetPage);
         });
         return;
       }
