@@ -113,10 +113,12 @@ flutter:
         - asset: assets/icons/icomoon.ttf
 
 # App launcher icon configuration
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/images/infiniteer_app_logo.png"
+  adaptive_icon_background: "#6A1B9A"
+  adaptive_icon_foreground: "assets/images/infiniteer_app_logo.png"
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

@@ -247,7 +247,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
                   // Token counter (tappable to buy more)
                   GestureDetector(
-                    onTap: () {
+                    onTap: () async {
+                      // Refresh account balance before entering purchase screen
+                      try {
+                        final userId = SecureAuthManager.userId;
+                        if (userId != null) {
+                          await SecureApiService.getAccountInfo(userId);
+                        }
+                      } catch (e) {
+                        debugPrint('Failed to refresh account info before purchase: $e');
+                      }
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(

@@ -11,6 +11,7 @@ import '../widgets/story_settings_overlay.dart';
 import '../widgets/story_header.dart';
 import '../services/state_manager.dart';
 import '../services/secure_api_service.dart';
+import '../services/secure_auth_manager.dart';
 import '../services/global_play_service.dart';
 import '../services/catalog_service.dart';
 import '../services/peek_service.dart';
@@ -45,11 +46,26 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   void initState() {
     super.initState();
 
+    // Refresh account balance when entering story detail cover
+    _refreshAccountInfo();
+
     // Check for stale pending states before loading story
     _checkTimeoutAndLoad();
 
     // Register for global play service callbacks
     GlobalPlayService.registerCallback(widget.story.id, _onPlayComplete);
+  }
+
+  /// Refresh account balance when entering story
+  Future<void> _refreshAccountInfo() async {
+    try {
+      final userId = SecureAuthManager.userId;
+      if (userId != null) {
+        await SecureApiService.getAccountInfo(userId);
+      }
+    } catch (e) {
+      debugPrint('Failed to refresh account info on story entry: $e');
+    }
   }
 
   /// Override the back navigation to refresh catalog metadata

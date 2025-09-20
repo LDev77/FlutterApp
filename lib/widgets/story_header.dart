@@ -206,7 +206,17 @@ class _StoryHeaderState extends State<StoryHeader> {
     );
   }
 
-  void _openPaymentScreen(BuildContext context) {
+  void _openPaymentScreen(BuildContext context) async {
+    // Refresh account balance before entering purchase screen
+    try {
+      final userId = SecureAuthManager.userId;
+      if (userId != null) {
+        await SecureApiService.getAccountInfo(userId);
+      }
+    } catch (e) {
+      debugPrint('Failed to refresh account info before purchase: $e');
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(

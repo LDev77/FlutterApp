@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:spell_check_on_client/spell_check_on_client.dart';
 import '../models/turn_data.dart';
 import '../services/state_manager.dart';
+import '../services/secure_auth_manager.dart';
+import '../services/secure_api_service.dart';
 import '../styles/story_text_styles.dart';
 import 'infinity_loading.dart';
 import '../icons/custom_icons.dart';
@@ -570,11 +572,21 @@ class _InputClusterState extends State<InputCluster> {
     );
   }
 
-  void _handleOptionSelect(String option) {
+  void _handleOptionSelect(String option) async {
     final tokens = IFEStateManager.getTokens() ?? 0;
 
     // If no tokens, redirect to purchase page instead of sending
     if (tokens == 0) {
+      // Refresh account balance before entering purchase screen
+      try {
+        final userId = SecureAuthManager.userId;
+        if (userId != null) {
+          await SecureApiService.getAccountInfo(userId);
+        }
+      } catch (e) {
+        debugPrint('Failed to refresh account info before purchase: $e');
+      }
+
       Navigator.push(
         context,
         MaterialPageRoute(

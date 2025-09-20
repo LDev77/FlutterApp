@@ -24,7 +24,22 @@
       "Bash(del test_peek_serialization.dart)",
       "Bash(move:*)",
       "Bash(nc:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(gradlew:*)",
+      "Bash(.gradlew --stop)",
+      "Bash(del \"E:\\projects\\IFE\\FlutterApp\\android\\.gradle\\noVersion\\buildLogic.lock\")",
+      "Bash(gradlew.bat:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(./gradlew:*)",
+      "Bash(del /s /q \"C:\\Users\\Lou\\.gradle\\caches\\8.7\")",
+      "Bash(adb:*)",
+      "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" devices)",
+      "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" logcat -d)",
+      "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" install -r \"build\\app\\outputs\\flutter-apk\\app-release.apk\")",
+      "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" uninstall com.infiniteer.apk)",
+      "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" install \"build\\app\\outputs\\flutter-apk\\app-release.apk\")",
+      "Bash(del nul)"
     ],
     "deny": [],
     "ask": []
