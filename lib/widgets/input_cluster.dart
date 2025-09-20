@@ -99,7 +99,6 @@ class _InputClusterState extends State<InputCluster> {
   double _inputClusterHeight = 120.0; // Default fallback
   bool _hasInputText = false; // Track if input field has content
   OverlayEntry? _overlayEntry;
-  final LayerLink _layerLink = LayerLink();
   int _characterCount = 0;
   bool _isFocused = false;
 
@@ -134,43 +133,39 @@ class _InputClusterState extends State<InputCluster> {
               ),
             ),
           ),
-          // Options popup - positioned above the tap detector
-          CompositedTransformFollower(
-            link: _layerLink,
-            showWhenUnlinked: false,
-            offset: Offset(0, _calculatePopupOffset()), // Position to align with top of input cluster
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  width: MediaQuery.of(context).size.width - 32, // Full width minus margins
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).dividerColor.withOpacity(0.3),
-                      width: 1,
+          // Options popup - absolutely positioned 58px from bottom
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 66,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 8),
-                      ...widget.turn.availableOptions.map((option) => Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: _buildOptionButton(option),
-                          )),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    ...widget.turn.availableOptions.map((option) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: _buildOptionButton(option),
+                        )),
+                    const SizedBox(height: 8),
+                  ],
                 ),
               ),
             ),
@@ -295,21 +290,6 @@ class _InputClusterState extends State<InputCluster> {
     return _inputClusterHeight * 0.6; // Fallback to roughly where button would be
   }
 
-  double _calculatePopupOffset() {
-    if (_inputClusterKey.currentContext != null) {
-      final RenderBox clusterBox = _inputClusterKey.currentContext!.findRenderObject() as RenderBox;
-
-      // Calculate popup height
-      final double popupHeight = (widget.turn.availableOptions.length * 70.0) + 16; // 70px per option + padding
-
-      // The text field is positioned 16px from the top of the cluster (padding)
-      // Position popup so its bottom touches the top of the input cluster
-      return -16 - popupHeight;
-    }
-
-    // Fallback calculation
-    return -(widget.turn.availableOptions.length * 70.0) - 32; // Default offset with some padding
-  }
 
   /// Get border color based on focus state and character count
   Color _getInputBorderColor() {
@@ -380,10 +360,8 @@ class _InputClusterState extends State<InputCluster> {
                       ),
                     ),
 
-                  // Input box - wrapped with CompositedTransformTarget for anchoring
-                  CompositedTransformTarget(
-                    link: _layerLink,
-                    child: Container(
+                  // Input box
+                  Container(
                       decoration: BoxDecoration(
                         color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(12),
@@ -439,7 +417,6 @@ class _InputClusterState extends State<InputCluster> {
                         }(),
                       ),
                     ),
-                  ),
 
                   const SizedBox(height: 12),
 
