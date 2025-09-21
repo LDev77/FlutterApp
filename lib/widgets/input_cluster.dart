@@ -177,18 +177,22 @@ class _InputClusterState extends State<InputCluster> {
     );
 
     Overlay.of(context).insert(_overlayEntry!);
-    setState(() {
-      _showOptions = true;
-    });
+    if (mounted) {
+      setState(() {
+        _showOptions = true;
+      });
+    }
     widget.onOptionsVisibilityChanged?.call(true);
   }
 
   void _hideOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
-    setState(() {
-      _showOptions = false;
-    });
+    if (mounted) {
+      setState(() {
+        _showOptions = false;
+      });
+    }
     widget.onOptionsVisibilityChanged?.call(false);
   }
 
@@ -199,25 +203,24 @@ class _InputClusterState extends State<InputCluster> {
     widget.inputFocusNode.addListener(() {
       final hasFocus = widget.inputFocusNode.hasFocus;
       if (hasFocus && _showOptions) {
-        setState(() {
-          _showOptions = false;
-        });
+        if (mounted) {
+          setState(() {
+            _showOptions = false;
+          });
+        }
       }
       if (_isFocused != hasFocus) {
-        setState(() {
-          _isFocused = hasFocus;
-        });
+        if (mounted) {
+          setState(() {
+            _isFocused = hasFocus;
+          });
+        }
       }
     });
 
     // Initialize input state based on existing text
     _hasInputText = widget.inputController.text.trim().isNotEmpty;
     _characterCount = widget.inputController.text.length;
-
-    // Listen for layout changes to update height
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateInputClusterHeight();
-    });
 
     // Initialize spell check - DISABLED
     // _initializeSpellCheck();
@@ -377,10 +380,6 @@ class _InputClusterState extends State<InputCluster> {
                         focusNode: widget.inputFocusNode,
                         maxLength: 500,
                         onChanged: (text) {
-                          // Update height when text changes (multiline growth)
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _updateInputClusterHeight();
-                          });
                           // Track input state for send button styling and character count
                           setState(() {
                             _hasInputText = text.trim().isNotEmpty;
@@ -599,9 +598,11 @@ class _InputClusterState extends State<InputCluster> {
 
     // Hide the overlay and update state
     _hideOverlay();
-    setState(() {
-      _hasInputText = true;
-    });
+    if (mounted) {
+      setState(() {
+        _hasInputText = true;
+      });
+    }
 
     // Immediately send the selected option
     widget.onSendInput();
