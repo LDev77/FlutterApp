@@ -47,9 +47,9 @@ class InfoModalScreen extends StatelessWidget {
                             child: Text(
                               connectivity.statusText,
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: connectivity.statusColor,
-                                fontWeight: FontWeight.w600,
-                              ),
+                                    color: connectivity.statusColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ),
                         ],
@@ -83,9 +83,9 @@ class InfoModalScreen extends StatelessWidget {
                                 child: Text(
                                   snapshot.data!,
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontFamily: 'monospace',
-                                    fontSize: 13,
-                                  ),
+                                        fontFamily: 'monospace',
+                                        fontSize: 13,
+                                      ),
                                 ),
                               ),
                             ),
@@ -119,7 +119,7 @@ class InfoModalScreen extends StatelessWidget {
                   context,
                   title: 'Legal',
                   child: InkWell(
-                    onTap: () => _launchUrl('https://infiniteer.com/tos'),
+                    onTap: () => _launchUrl('https://infiniteer.com/tos-pp'),
                     borderRadius: BorderRadius.circular(8),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -131,16 +131,35 @@ class InfoModalScreen extends StatelessWidget {
                             color: Theme.of(context).colorScheme.primary,
                           ),
                           const SizedBox(width: 12),
-                          Text(
-                            'Terms of Service & Privacy Policy',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              decoration: TextDecoration.underline,
+                          Expanded(
+                            child: Text(
+                              'Terms of Service & Privacy Policy',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                              softWrap: true,
+                              overflow: TextOverflow.visible,
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Ultimate Privacy Section
+                _buildSectionCard(
+                  context,
+                  title: '🔏 Ultimate Privacy',
+                  child: Text(
+                    "All your stories are completely private to you, including your input. Only your device holds the data for generating characters and your worlds. Our Infineering AI receives your story's data securely and privately, brings it to life for you, and leaves no trace. With total privacy comes responsibility: please follow our terms and conditions. Role-play who your character is for best results.",
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          height: 1.4,
+                        ),
                   ),
                 ),
 
@@ -151,8 +170,8 @@ class InfoModalScreen extends StatelessWidget {
                   child: Text(
                     'Infiniteer v1.0.0',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                    ),
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        ),
                   ),
                 ),
               ],
@@ -180,9 +199,9 @@ class InfoModalScreen extends StatelessWidget {
           Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
           ),
           const SizedBox(height: 12),
           child,

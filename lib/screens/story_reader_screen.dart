@@ -59,10 +59,8 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   /// Refresh account balance when entering story
   Future<void> _refreshAccountInfo() async {
     try {
-      final userId = SecureAuthManager.userId;
-      if (userId != null) {
-        await SecureApiService.getAccountInfo(userId);
-      }
+      final userId = await SecureAuthManager.getUserId();
+      await SecureApiService.getAccountInfo(userId);
     } catch (e) {
       debugPrint('Failed to refresh account info on story entry: $e');
     }

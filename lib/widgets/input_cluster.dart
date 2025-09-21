@@ -579,10 +579,8 @@ class _InputClusterState extends State<InputCluster> {
     if (tokens == 0) {
       // Refresh account balance before entering purchase screen
       try {
-        final userId = SecureAuthManager.userId;
-        if (userId != null) {
-          await SecureApiService.getAccountInfo(userId);
-        }
+        final userId = await SecureAuthManager.getUserId();
+        await SecureApiService.getAccountInfo(userId);
       } catch (e) {
         debugPrint('Failed to refresh account info before purchase: $e');
       }

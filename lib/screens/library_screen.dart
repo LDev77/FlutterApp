@@ -7,6 +7,7 @@ import '../models/story_metadata.dart';
 import '../widgets/cached_cover_image.dart';
 import '../widgets/infinity_loading.dart';
 import '../widgets/smooth_scroll_behavior.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 import '../services/catalog_service.dart';
 import '../services/state_manager.dart';
 import '../services/theme_service.dart';
@@ -210,7 +211,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: Row(
                 children: [
                   Text(
-                    _catalog?.appTitle ?? 'Infiniteer',
+                    '∞ ${_catalog?.appTitle ?? 'Infiniteer'}',
                     style: TextStyle(
                       color: Theme.of(context).appBarTheme.foregroundColor,
                       fontWeight: FontWeight.bold,
@@ -250,10 +251,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     onTap: () async {
                       // Refresh account balance before entering purchase screen
                       try {
-                        final userId = SecureAuthManager.userId;
-                        if (userId != null) {
-                          await SecureApiService.getAccountInfo(userId);
-                        }
+                        final userId = await SecureAuthManager.getUserId();
+                        await SecureApiService.getAccountInfo(userId);
                       } catch (e) {
                         debugPrint('Failed to refresh account info before purchase: $e');
                       }
@@ -383,18 +382,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Main title box - top 1/3 of available space
+                // Main title box - 28% of available space
                 Expanded(
-                  flex: 1,
+                  flex: 28,
                   child: Container(
                     width: double.infinity,
                     alignment: Alignment.centerLeft,
-                    child: Text(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: AutoSizeText(
                       _catalog?.headerSubtitle ?? '',
                       style: const TextStyle(
+                        fontFamily: 'Michroma',
+                        fontFamilyFallback: ['Arial', 'Helvetica'],
                         color: Colors.white,
                         fontSize: 32,
-                        fontWeight: FontWeight.bold,
                         height: 1.1,
                         shadows: [
                           Shadow(
@@ -405,18 +406,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ],
                       ),
                       textAlign: TextAlign.left,
-                      overflow: TextOverflow.clip,
+                      maxLines: 2,
+                      minFontSize: 16,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
 
-                // Subtitle box - bottom 2/3 of available space
+                // Subtitle box - 72% of available space
                 Expanded(
-                  flex: 2,
+                  flex: 72,
                   child: Container(
                     width: double.infinity,
-                    alignment: Alignment.topLeft,
-                    child: Text(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(top: 4),
+                    child: AutoSizeText(
                       _catalog?.welcomeMessage ?? '',
                       style: const TextStyle(
                         color: Colors.white,
@@ -431,7 +435,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ],
                       ),
                       textAlign: TextAlign.left,
-                      overflow: TextOverflow.clip,
+                      minFontSize: 12,
+                      maxLines: null,
+                      overflow: TextOverflow.visible,
                     ),
                   ),
                 ),

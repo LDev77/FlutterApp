@@ -39,7 +39,10 @@
       "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" install -r \"build\\app\\outputs\\flutter-apk\\app-release.apk\")",
       "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" uninstall com.infiniteer.apk)",
       "Bash(\"C:\\Users\\Lou\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe\" install \"build\\app\\outputs\\flutter-apk\\app-release.apk\")",
-      "Bash(del nul)"
+      "Bash(del nul)",
+      "Bash(unzip:*)",
+      "Bash(keytool:*)",
+      "Bash(./generate_keystore.bat)"
     ],
     "deny": [],
     "ask": []

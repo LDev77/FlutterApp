@@ -56,6 +56,7 @@ class InfinityLoading extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: color ?? Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 fontWeight: FontWeight.w500,
+                fontSize: (Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14) * 1.5, // 50% increase
               ),
               textAlign: TextAlign.center,
             ),

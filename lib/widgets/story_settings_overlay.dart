@@ -63,8 +63,10 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
           child: GestureDetector(
             onTap: () {}, // Prevent closing when tapping on modal
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              padding: const EdgeInsets.all(24),
+              margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
+              ),
               decoration: BoxDecoration(
                 color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(16),
@@ -76,9 +78,11 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Header
                   Row(
@@ -335,6 +339,7 @@ class _StorySettingsOverlayState extends State<StorySettingsOverlay> {
                     ),
                   ),
                 ],
+                ),
               ),
             ),
           ),

@@ -91,14 +91,24 @@ class StoryStatusPage extends StatelessWidget {
 
     switch (status) {
       case 'pending':
-        return const Column(
+        return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             InfinityLoading(
-              size: 80,
+              size: 107, // 33% increase from 80
               message: 'Infiniteering',
               showMessage: true,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'It takes about a one minute...',
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         );
