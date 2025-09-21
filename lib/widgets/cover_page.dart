@@ -139,18 +139,14 @@ class _CoverPageState extends State<CoverPage> {
                     _toggleExpansion();
                   }
                 },
-                child: AnimatedContainer(
+                child: AnimatedSize(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
-                  constraints: _isExpanded 
-                    ? BoxConstraints(
-                        minHeight: screenHeight * 0.3, // Minimum 30% when expanded
-                        maxHeight: screenHeight * 0.8, // Maximum 80% when expanded
-                      )
-                    : BoxConstraints(
-                        minHeight: screenHeight * 0.3, // Minimum 30% when collapsed
-                        maxHeight: screenHeight * 0.3, // Maximum 30% when collapsed
-                      ),
+                  child: Container(
+                    width: double.infinity,
+                    constraints: BoxConstraints(
+                      maxHeight: screenHeight * 0.8, // Only set maximum to prevent covering entire screen
+                    ),
                   padding: const EdgeInsets.only(
                     left: 24,
                     right: 24,
@@ -171,27 +167,25 @@ class _CoverPageState extends State<CoverPage> {
                       topRight: Radius.circular(16),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.max, // Take all available space in container
-                    mainAxisAlignment: MainAxisAlignment.end, // Always bottom align to keep text bottom edge fixed
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min, // Size naturally based on content
+                      mainAxisAlignment: MainAxisAlignment.end, // Keep bottom alignment
                     children: [
                       // Description text
-                      Flexible(
-                        child: AnimatedBuilder(
-                          animation: ThemeService.instance,
-                          builder: (context, child) {
-                            return Text(
-                              widget.story.description,
-                              style: StoryTextStyles.storyDescription.copyWith(
-                                color: Colors.white.withOpacity(0.9),
-                              ),
-                              textAlign: TextAlign.left,
-                              maxLines: _isExpanded ? null : 7, // No limit when expanded, 7 lines when collapsed
-                              overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis, // No overflow when expanded, ellipsis when collapsed
-                            );
-                          },
-                        ),
+                      AnimatedBuilder(
+                        animation: ThemeService.instance,
+                        builder: (context, child) {
+                          return Text(
+                            widget.story.description,
+                            style: StoryTextStyles.storyDescription.copyWith(
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            textAlign: TextAlign.left,
+                            maxLines: _isExpanded ? null : 7, // No limit when expanded, 7 lines when collapsed
+                            overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis, // No overflow when expanded, ellipsis when collapsed
+                          );
+                        },
                       ),
                       
                       // Bottom row with arrow only
@@ -226,6 +220,7 @@ class _CoverPageState extends State<CoverPage> {
                         ),
                       ),
                     ],
+                    ),
                   ),
                 ),
               ),
