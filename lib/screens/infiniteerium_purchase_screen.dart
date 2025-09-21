@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/state_manager.dart';
 import '../services/connectivity_service.dart';
 import '../services/token_purchase_service.dart';
+import '../services/secure_api_service.dart';
+import '../services/secure_auth_manager.dart';
 import '../widgets/infinity_loading.dart';
 import '../widgets/payment_success_modal.dart';
 import '../widgets/payment_error_modal.dart';
@@ -63,6 +65,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
   void initState() {
     super.initState();
     _initializePurchaseService();
+    _refreshAccountInfo();
   }
 
   Future<void> _initializePurchaseService() async {
@@ -84,6 +87,16 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
       }
     } catch (e) {
       debugPrint('Error initializing purchase service: $e');
+    }
+  }
+
+  /// Refresh account balance when accessing purchase page
+  Future<void> _refreshAccountInfo() async {
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      await SecureApiService.getAccountInfo(userId);
+    } catch (e) {
+      debugPrint('Failed to refresh account info on purchase page: $e');
     }
   }
 

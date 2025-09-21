@@ -43,6 +43,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _loadCachedCatalog();
     _checkBackgroundLoading();
 
+    // Refresh account balance when accessing library page
+    _refreshAccountInfo();
+
     // Listen for token balance updates
     IFEStateManager.tokenBalanceNotifier.addListener(_onTokenBalanceChanged);
 
@@ -75,6 +78,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _userTokens = tokens;
     });
     debugPrint('Library screen loaded token balance: $_userTokens (raw: $tokens)');
+  }
+
+  /// Refresh account balance when accessing library page
+  Future<void> _refreshAccountInfo() async {
+    try {
+      final userId = await SecureAuthManager.getUserId();
+      await SecureApiService.getAccountInfo(userId);
+    } catch (e) {
+      debugPrint('Failed to refresh account info on library page: $e');
+    }
   }
 
   /// Check if background loading is in progress and listen for updates
@@ -226,22 +239,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     animation: ThemeService.instance,
                     builder: (context, child) {
                       return IconButton(
-                        onPressed: ThemeService.instance.isTransitioning
-                            ? null
-                            : ThemeService.instance.toggleTheme,
+                        onPressed: ThemeService.instance.isTransitioning ? null : ThemeService.instance.toggleTheme,
                         icon: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 300),
                           child: Icon(
-                            ThemeService.instance.isDarkMode
-                                ? Icons.light_mode
-                                : Icons.dark_mode,
+                            ThemeService.instance.isDarkMode ? Icons.light_mode : Icons.dark_mode,
                             key: ValueKey(ThemeService.instance.isDarkMode),
                             color: Theme.of(context).primaryColor,
                           ),
                         ),
-                        tooltip: ThemeService.instance.isDarkMode
-                            ? 'Switch to Light Mode'
-                            : 'Switch to Dark Mode',
+                        tooltip: ThemeService.instance.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
                       );
                     },
                   ),
@@ -339,7 +346,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             return SliverToBoxAdapter(
               child: _buildGenreSection(genreRow),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -449,13 +456,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-
   Widget _buildGenreSection(GenreRow genreRow, {double heightPercentage = 0.50}) {
     final screenHeight = MediaQuery.of(context).size.height;
     final rowHeight = screenHeight * heightPercentage; // Flexible vh percentage
     final bookHeight = rowHeight - 40; // Leave space for margins
     final bookWidth = bookHeight / 1.62; // Calculate width to maintain 1:1.62 ratio
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -485,7 +491,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ],
           ),
         ),
-        
+
         // Horizontal story row
         SizedBox(
           height: rowHeight,
@@ -510,7 +516,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             },
           ),
         ),
-        
+
         const SizedBox(height: 30),
       ],
     );
@@ -518,7 +524,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildBookCover(CatalogStory story, double bookWidth, double bookHeight) {
     final metadata = IFEStateManager.getStoryMetadata(story.storyId);
-    
+
     return GestureDetector(
       onTap: () => _openStory(story),
       child: Container(
@@ -530,7 +536,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: Material(
             elevation: 8.0,
             borderRadius: BorderRadius.circular(12.0),
-            color: Color(0xFF121212), // Dark gray background
+            color: const Color(0xFF121212), // Dark gray background
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12.0),
               child: Stack(
@@ -543,8 +549,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       metadata: metadata,
                     ),
                   ),
-                  
-                  
+
                   // Floating gradient overlay with content at bottom
                   Positioned(
                     bottom: 0,
@@ -631,7 +636,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (metadata != null &&
         metadata.lastPlayedAt != null &&
         DateTime.now().difference(metadata.lastPlayedAt!).inDays < 7 &&
-        !hasCompletedPlaythrough) { // Don't show Recent if already completed
+        !hasCompletedPlaythrough) {
+      // Don't show Recent if already completed
       chips.add(_buildChip('Recent', Colors.green));
     }
 
@@ -677,12 +683,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget _buildSideBlock(double bookWidth, double bookHeight, {required bool isLeft}) {
     final blockWidth = bookWidth / 4; // 1/4 the width of a cover
-    
+
     return Container(
       width: blockWidth,
       height: bookHeight,
       margin: EdgeInsets.only(
-        left: isLeft ? 0 : 12.0,  // No left margin for leftmost block
+        left: isLeft ? 0 : 12.0, // No left margin for leftmost block
         right: isLeft ? 12.0 : 0, // No right margin for rightmost block
       ),
       decoration: BoxDecoration(
@@ -691,7 +697,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ),
     );
   }
-  
+
   void _openStory(CatalogStory catalogStory) {
     // Convert CatalogStory to Story model for StoryReaderScreen compatibility
     // TODO: Eventually refactor StoryReaderScreen to work with CatalogStory directly
@@ -705,12 +711,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
       isAdult: catalogStory.tags.contains('Romance') || catalogStory.tags.contains('Adult'),
       estimatedTurns: catalogStory.estimatedTurns,
     );
-    
+
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => 
-            StoryReaderScreen(story: story),
+        pageBuilder: (context, animation, secondaryAnimation) => StoryReaderScreen(story: story),
         transitionDuration: const Duration(milliseconds: 400),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
@@ -804,7 +809,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       debugPrint('🔄 Got userId: $userId');
 
       await SecureApiService.getAccountInfo(userId);
-      debugPrint('✅ Account call succeeded! ConnectivityService.isConnected = ${ConnectivityService.instance.isConnected}');
+      debugPrint(
+          '✅ Account call succeeded! ConnectivityService.isConnected = ${ConnectivityService.instance.isConnected}');
 
       // If we reach here, account call succeeded and connectivity is now marked connected
       debugPrint('✅ Account reconnect successful, fetching catalog...');
@@ -839,7 +845,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _connectivityTimer?.cancel();
       _connectivityTimer = null;
       debugPrint('✅ Connectivity timer stopped - full recovery complete!');
-
     } catch (e) {
       debugPrint('❌ Account reconnect failed: $e');
       debugPrint('❌ Error type: ${e.runtimeType}');
@@ -893,7 +898,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               Padding(
                 padding: const EdgeInsets.only(right: 24), // Space for close button
                 child: Text(
-                  'All Infiniteer Interactive Fiction Experiences can be shaped by players into mature themes and topics. We advise restraint and staying true to appropriate role-play and especially staying clear of behavior prohibited in our terms and conditions, of which you agree by playing.',
+                  'All Infiniteer Interactive Fiction Experiences can be shaped by players into mature themes and topics. We advise staying true to appropriate role-play and staying within the Terms and Conditions, of which you agree by playing.',
                   style: TextStyle(
                     color: Colors.pink.shade300,
                     fontSize: 12,

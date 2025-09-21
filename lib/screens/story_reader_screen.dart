@@ -552,13 +552,13 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     
     // Current turn page should have input cluster if:
     // 1. It's the last turn in history AND
-    // 2. The turn has available options (indicating it's ready for input)
+    // 2. The playthrough status is "ready" (regardless of options count)
     final isOnLastTurn = _currentPage == _playthrough!.turnHistory.length;
     if (!isOnLastTurn) return false;
-    
-    // Check if the last turn has options available (meaning it's ready for input)
-    final lastTurn = _playthrough!.turnHistory.last;
-    return lastTurn.availableOptions.isNotEmpty;
+
+    // Check playthrough status instead of options - "ready" status should always show InputCluster
+    final playthroughMetadata = IFEStateManager.getPlaythroughMetadata(widget.story.id, 'main');
+    return playthroughMetadata?.status == 'ready';
   }
 
   /// Check if we should show input cluster on a turn page
