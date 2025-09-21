@@ -6,13 +6,15 @@ class OptimizedImageWidget extends StatelessWidget {
   final BoxFit fit;
   final double? width;
   final double? height;
-  
+  final Alignment alignment;
+
   const OptimizedImageWidget({
     super.key,
     required this.imageUrl,
     this.fit = BoxFit.cover,
     this.width,
     this.height,
+    this.alignment = Alignment.center,
   });
   
   @override
@@ -30,6 +32,7 @@ class OptimizedImageWidget extends StatelessWidget {
     return Image.network(
       fullImageUrl,
       fit: fit,
+      alignment: alignment,
       width: width,
       height: height,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {

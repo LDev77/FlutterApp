@@ -545,7 +545,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   Positioned.fill(
                     child: CachedCoverImage(
                       imageUrl: story.coverImageUri,
-                      fit: BoxFit.cover,
+                      fit: BoxFit.fitWidth, // DO NOT CHANGE - fits width within 1:1.62 container
+                      alignment: Alignment.topCenter, // DO NOT CHANGE - aligns to top, bottom gets clipped
                       metadata: metadata,
                     ),
                   ),

@@ -114,7 +114,8 @@ class _CoverPageState extends State<CoverPage> {
                 height: coverHeight,
                 child: OptimizedImageWidget(
                   imageUrl: widget.story.coverUrl,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.fitWidth, // DO NOT CHANGE - fits width within container
+                  alignment: Alignment.topCenter, // DO NOT CHANGE - aligns to top, bottom gets clipped
                 ),
               ),
             ),

@@ -11,6 +11,7 @@ class CachedCoverImage extends StatelessWidget {
   final double? height;
   final BorderRadius? borderRadius;
   final StoryMetadata? metadata;
+  final Alignment alignment;
 
   // Static tracking for failed images
   static final Set<String> _failedImages = <String>{};
@@ -93,6 +94,7 @@ class CachedCoverImage extends StatelessWidget {
     this.height,
     this.borderRadius,
     this.metadata,
+    this.alignment = Alignment.center,
   });
 
   @override
@@ -114,6 +116,7 @@ class CachedCoverImage extends StatelessWidget {
       imageWidget = Image.network(
         fullImageUrl,
         fit: fit,
+        alignment: alignment,
         width: width,
         height: height,
         loadingBuilder: (context, child, loadingProgress) {
@@ -160,7 +163,7 @@ class CachedCoverImage extends StatelessWidget {
               _failedImages.remove(fullImageUrl); // Remove from failed list on success
               debugPrint('✅ Image loaded successfully: $fullImageUrl');
               debugPrint('🖼️ Remaining failed images: ${_failedImages.length}');
-              return Image(image: imageProvider, fit: fit);
+              return Image(image: imageProvider, fit: fit, alignment: alignment);
             },
             placeholder: (context, url) => Container(
               color: Colors.grey[900],
