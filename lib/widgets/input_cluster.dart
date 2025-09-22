@@ -99,11 +99,13 @@ class _InputClusterState extends State<InputCluster> {
   final GlobalKey _inputClusterKey = GlobalKey();
   final GlobalKey _optionsButtonKey = GlobalKey();
   double _inputClusterHeight = 120.0; // Default fallback
-  bool _hasInputText = false; // Track if input field has content
   OverlayEntry? _overlayEntry;
-  int _characterCount = 0;
   bool _isFocused = false;
   int _tokenBalance = 0; // Track token balance for reactive updates
+
+  // Text-specific state with ValueNotifiers (no general setState needed)
+  final ValueNotifier<bool> _hasInputTextNotifier = ValueNotifier(false);
+  final ValueNotifier<int> _characterCountNotifier = ValueNotifier(0);
 
   // Spell check functionality
   SpellCheck? _spellCheck;
@@ -127,6 +129,15 @@ class _InputClusterState extends State<InputCluster> {
         });
       }
     }
+  }
+
+  // Dedicated text input handler (NO general setState - targeted updates only)
+  void _setInput(String text) {
+    // Update ONLY text-related state via ValueNotifiers
+    _hasInputTextNotifier.value = text.trim().isNotEmpty;
+    _characterCountNotifier.value = text.length;
+
+    // No setState() call = no widget rebuild = input method connection preserved
   }
 
   void _showOverlay() {
@@ -213,9 +224,11 @@ class _InputClusterState extends State<InputCluster> {
   void initState() {
     super.initState();
 
+    // Set initial values for ValueNotifiers from existing text
+    _hasInputTextNotifier.value = widget.inputController.text.trim().isNotEmpty;
+    _characterCountNotifier.value = widget.inputController.text.length;
+
     // Initial state population (one-time, from playthrough_meta)
-    _hasInputText = widget.inputController.text.trim().isNotEmpty;
-    _characterCount = widget.inputController.text.length;
     _tokenBalance = IFEStateManager.getTokens() ?? 0;
 
     // Reactive listeners setup
@@ -317,16 +330,17 @@ class _InputClusterState extends State<InputCluster> {
 
   /// Get border color based on focus state and character count
   Color _getInputBorderColor() {
-    if (_characterCount >= 500) return Colors.red;
-    if (_characterCount >= 450) return Colors.orange;
+    final characterCount = _characterCountNotifier.value;
+    if (characterCount >= 500) return Colors.red;
+    if (characterCount >= 450) return Colors.orange;
     if (_isFocused) return Colors.purple; // Magenta when focused
     return Theme.of(context).dividerColor.withOpacity(0.3); // Gray when inactive
   }
 
   /// Get character counter color based on count
-  Color _getCounterTextColor() {
-    if (_characterCount >= 500) return Colors.red;
-    if (_characterCount >= 450) return Colors.orange;
+  Color _getCounterTextColor(int characterCount) {
+    if (characterCount >= 500) return Colors.red;
+    if (characterCount >= 450) return Colors.orange;
     return Theme.of(context).colorScheme.onSurface.withOpacity(0.5);
   }
 
@@ -372,17 +386,22 @@ class _InputClusterState extends State<InputCluster> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Counter strip (collapsed when no text, expands naturally)
-                  if (_characterCount > 0)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 2, top: 2, right: 2),
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '$_characterCount/500',
-                        style: StoryTextStyles.turnMetadata.copyWith(
-                          color: _getCounterTextColor(),
+                  ValueListenableBuilder<int>(
+                    valueListenable: _characterCountNotifier,
+                    builder: (context, characterCount, child) {
+                      if (characterCount == 0) return const SizedBox.shrink();
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 2, top: 2, right: 2),
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$characterCount/500',
+                          style: StoryTextStyles.turnMetadata.copyWith(
+                            color: _getCounterTextColor(characterCount),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
+                  ),
 
                   // Input box
                   Container(
@@ -399,11 +418,8 @@ class _InputClusterState extends State<InputCluster> {
                         focusNode: widget.inputFocusNode,
                         maxLength: 500,
                         onChanged: (text) {
-                          // Track input state for send button styling and character count
-                          setState(() {
-                            _hasInputText = text.trim().isNotEmpty;
-                            _characterCount = text.length;
-                          });
+                          // Use targeted text update (NO general setState - preserves input method)
+                          _setInput(text);
                         },
                         decoration: InputDecoration(
                           hintText: 'Enter your own actions...',
@@ -497,44 +513,50 @@ class _InputClusterState extends State<InputCluster> {
 
                       const SizedBox(width: 12),
 
-                      // Send button (circular)
-                      GestureDetector(
-                        onTap: (_showPlayButton && !widget.isLoading) ? widget.onSendInput : null,
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            gradient: _showPlayButton
-                                ? LinearGradient(
-                                    colors: [Colors.purple, Colors.purple.shade600],
-                                  )
-                                : LinearGradient(
-                                    colors: [Colors.grey.shade400, Colors.grey.shade500],
-                                  ),
-                            borderRadius: BorderRadius.circular(25),
-                            boxShadow: _showPlayButton
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.purple.withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : [],
-                          ),
-                          child: Center(
-                            child: widget.isLoading
-                                ? const InfinityLoading.small(
-                                    size: 20,
-                                    color: Colors.white,
-                                  )
-                                : Icon(
-                                    CustomIcons.coin,
-                                    size: 20,
-                                    color: _showPlayButton ? Colors.white : Colors.grey.shade600,
-                                  ),
-                          ),
-                        ),
+                      // Send button (circular) - reactive to text input changes
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _hasInputTextNotifier,
+                        builder: (context, hasInputText, child) {
+                          final showPlayButton = hasInputText && _tokenBalance > 0;
+                          return GestureDetector(
+                            onTap: (showPlayButton && !widget.isLoading) ? widget.onSendInput : null,
+                            child: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                gradient: showPlayButton
+                                    ? LinearGradient(
+                                        colors: [Colors.purple, Colors.purple.shade600],
+                                      )
+                                    : LinearGradient(
+                                        colors: [Colors.grey.shade400, Colors.grey.shade500],
+                                      ),
+                                borderRadius: BorderRadius.circular(25),
+                                boxShadow: showPlayButton
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.purple.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Center(
+                                child: widget.isLoading
+                                    ? const InfinityLoading.small(
+                                        size: 20,
+                                        color: Colors.white,
+                                      )
+                                    : Icon(
+                                        CustomIcons.coin,
+                                        size: 20,
+                                        color: showPlayButton ? Colors.white : Colors.grey.shade600,
+                                      ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -615,25 +637,26 @@ class _InputClusterState extends State<InputCluster> {
     // Set the input field to the selected option
     widget.inputController.text = option;
 
-    // Hide the overlay and update state
+    // Hide the overlay and update state (use targeted update)
     _hideOverlay();
-    if (mounted) {
-      setState(() {
-        _hasInputText = true;
-      });
-    }
+    _hasInputTextNotifier.value = true;
 
     // Immediately send the selected option
     widget.onSendInput();
   }
 
   // Computed property for clean separation of concerns
-  bool get _showPlayButton => _hasInputText && _tokenBalance > 0;
+  bool get _showPlayButton => _hasInputTextNotifier.value && _tokenBalance > 0;
 
   @override
   void dispose() {
     // Clean up listeners
     IFEStateManager.tokenBalanceNotifier.removeListener(_onTokenBalanceChanged);
+
+    // Clean up ValueNotifiers
+    _hasInputTextNotifier.dispose();
+    _characterCountNotifier.dispose();
+
     _overlayEntry?.remove();
     super.dispose();
   }
