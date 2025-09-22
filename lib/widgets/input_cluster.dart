@@ -103,6 +103,7 @@ class _InputClusterState extends State<InputCluster> {
   OverlayEntry? _overlayEntry;
   int _characterCount = 0;
   bool _isFocused = false;
+  int _tokenBalance = 0; // Track token balance for reactive updates
 
   // Spell check functionality
   SpellCheck? _spellCheck;
@@ -113,6 +114,18 @@ class _InputClusterState extends State<InputCluster> {
   void _closeOptions() {
     if (_showOptions) {
       _hideOverlay();
+    }
+  }
+
+  // Handle token balance changes (reactive update)
+  void _onTokenBalanceChanged() {
+    if (mounted) {
+      final newBalance = IFEStateManager.getTokens() ?? 0;
+      if (newBalance != _tokenBalance) {
+        setState(() {
+          _tokenBalance = newBalance;
+        });
+      }
     }
   }
 
@@ -199,6 +212,16 @@ class _InputClusterState extends State<InputCluster> {
   @override
   void initState() {
     super.initState();
+
+    // Initial state population (one-time, from playthrough_meta)
+    _hasInputText = widget.inputController.text.trim().isNotEmpty;
+    _characterCount = widget.inputController.text.length;
+    _tokenBalance = IFEStateManager.getTokens() ?? 0;
+
+    // Reactive listeners setup
+    // Listen for token balance updates (specific, targeted listener)
+    IFEStateManager.tokenBalanceNotifier.addListener(_onTokenBalanceChanged);
+
     // Hide options when text field is focused and track focus state
     widget.inputFocusNode.addListener(() {
       final hasFocus = widget.inputFocusNode.hasFocus;
@@ -217,10 +240,6 @@ class _InputClusterState extends State<InputCluster> {
         }
       }
     });
-
-    // Initialize input state based on existing text
-    _hasInputText = widget.inputController.text.trim().isNotEmpty;
-    _characterCount = widget.inputController.text.length;
 
     // Initialize spell check - DISABLED
     // _initializeSpellCheck();
@@ -480,12 +499,12 @@ class _InputClusterState extends State<InputCluster> {
 
                       // Send button (circular)
                       GestureDetector(
-                        onTap: (_canSendInput() && !widget.isLoading) ? widget.onSendInput : null,
+                        onTap: (_showPlayButton && !widget.isLoading) ? widget.onSendInput : null,
                         child: Container(
                           width: 50,
                           height: 50,
                           decoration: BoxDecoration(
-                            gradient: _canSendInput()
+                            gradient: _showPlayButton
                                 ? LinearGradient(
                                     colors: [Colors.purple, Colors.purple.shade600],
                                   )
@@ -493,7 +512,7 @@ class _InputClusterState extends State<InputCluster> {
                                     colors: [Colors.grey.shade400, Colors.grey.shade500],
                                   ),
                             borderRadius: BorderRadius.circular(25),
-                            boxShadow: _canSendInput()
+                            boxShadow: _showPlayButton
                                 ? [
                                     BoxShadow(
                                       color: Colors.purple.withOpacity(0.3),
@@ -512,7 +531,7 @@ class _InputClusterState extends State<InputCluster> {
                                 : Icon(
                                     CustomIcons.coin,
                                     size: 20,
-                                    color: _canSendInput() ? Colors.white : Colors.grey.shade600,
+                                    color: _showPlayButton ? Colors.white : Colors.grey.shade600,
                                   ),
                           ),
                         ),
@@ -608,13 +627,13 @@ class _InputClusterState extends State<InputCluster> {
     widget.onSendInput();
   }
 
-  bool _canSendInput() {
-    final tokens = IFEStateManager.getTokens() ?? 0;
-    return _hasInputText && tokens > 0;
-  }
+  // Computed property for clean separation of concerns
+  bool get _showPlayButton => _hasInputText && _tokenBalance > 0;
 
   @override
   void dispose() {
+    // Clean up listeners
+    IFEStateManager.tokenBalanceNotifier.removeListener(_onTokenBalanceChanged);
     _overlayEntry?.remove();
     super.dispose();
   }
