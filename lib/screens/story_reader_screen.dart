@@ -831,9 +831,17 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         _pageController.jumpToPage(lastTurnIndex);
       });
     } else {
-      // No playthrough data - reset to null and trigger rebuild
+      // No playthrough data - create empty placeholder for cover page (don't set to null)
+      _playthrough = StoryPlaythrough(
+        storyId: widget.story.id,
+        turnHistory: [], // Empty - shows as new story
+        currentTurnIndex: 0,
+        lastTurnDate: DateTime.now(),
+        numberOfTurns: 0,
+      );
+
       setState(() {
-        _playthrough = null;
+        _currentPage = 0; // Stay on cover page for empty playthrough
       });
     }
   }
@@ -873,14 +881,16 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         _reloadStoryState();
       },
       onNavigateToCover: () async {
-        // Reload story state to reflect deleted playthrough
+        // Reload story state to reflect deleted playthrough (creates empty playthrough)
         await _reloadStoryState();
 
-        // Navigate to cover page (page 0)
+        // Navigate to cover page (page 0) - _reloadStoryState already sets this but be explicit
         setState(() {
           _currentPage = 0;
         });
-        _pageController.jumpToPage(0);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _pageController.jumpToPage(0);
+        });
       },
       onNavigateToValidPage: () {
         // Navigate to the last valid turn page

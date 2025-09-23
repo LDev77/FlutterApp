@@ -42,9 +42,7 @@ class StoryStatusPage extends StatelessWidget {
     return Stack(
       children: [
         // User input at top (blue box) - hide for completed status
-        if (metadata.userInput != null &&
-            metadata.userInput!.isNotEmpty &&
-            metadata.status != 'completed')
+        if (metadata.userInput != null && metadata.userInput!.isNotEmpty && metadata.status != 'completed')
           Positioned(
             top: 20,
             left: 20,
@@ -65,7 +63,7 @@ class StoryStatusPage extends StatelessWidget {
               ),
             ),
           ),
-        
+
         // Status message area - centered vertically
         Center(
           child: Padding(
@@ -74,8 +72,7 @@ class StoryStatusPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Add space for user input if present
-                if (metadata.userInput?.isNotEmpty == true)
-                  SizedBox(height: 80),
+                if (metadata.userInput?.isNotEmpty == true) const SizedBox(height: 80),
                 _buildStatusMessage(context),
               ],
             ),
@@ -95,14 +92,14 @@ class StoryStatusPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            InfinityLoading(
+            const InfinityLoading(
               size: 107, // 33% increase from 80
               message: 'Infiniteering',
               showMessage: true,
             ),
             const SizedBox(height: 12),
             Text(
-              'It takes about a one minute...',
+              'It takes about one minute...',
               style: TextStyle(
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
@@ -112,7 +109,7 @@ class StoryStatusPage extends StatelessWidget {
             ),
           ],
         );
-      
+
       case 'message':
         return Container(
           padding: const EdgeInsets.all(16),
@@ -130,7 +127,7 @@ class StoryStatusPage extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         );
-      
+
       case 'exception':
         return Container(
           padding: const EdgeInsets.all(16),
@@ -224,5 +221,4 @@ class StoryStatusPage extends StatelessWidget {
         return const SizedBox.shrink();
     }
   }
-
 }
