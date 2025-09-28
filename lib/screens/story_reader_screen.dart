@@ -76,6 +76,25 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
     }
   }
 
+  /// Handle status page navigation - sets state to ready and navigates to previous page
+  Future<void> _handleStatusPageNavigation() async {
+    // Set playthrough state to ready to clear any error status
+    await IFEStateManager.setPlaythroughReady(
+      widget.story.id,
+      'main',
+      clearUserInput: false,
+      clearStatusMessage: true,
+    );
+
+    // Navigate back to previous page (same as prev button behavior)
+    if (mounted) {
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   /// Handle restarting a completed story
   Future<void> _handleRestartStory() async {
     try {
@@ -378,10 +397,9 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
                         return;
                       }
 
-                      // For other statuses (exception/message), user should retry or navigate away
-                      // No direct status manipulation allowed - let the user retry their input
-                      // or go back to library if they don't want to continue
-                      await _handleBackNavigation();
+                      // For other statuses (exception/message), set state to ready and navigate to previous page
+                      // This matches the behavior of the prev button and properly resets the playthrough state
+                      await _handleStatusPageNavigation();
                     },
                     onRetry: displayMetadata?.userInput != null
                         ? () async => await _handleApiStoryInput(displayMetadata!.userInput!)
