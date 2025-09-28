@@ -620,7 +620,8 @@ class _InputClusterState extends State<InputCluster> {
       // Refresh account balance before entering purchase screen
       try {
         final userId = await SecureAuthManager.getUserId();
-        await SecureApiService.getAccountInfo(userId);
+        final account = await SecureApiService.getAccountInfo(userId);
+        await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
       } catch (e) {
         debugPrint('Failed to refresh account info before purchase: $e');
       }
@@ -630,7 +631,14 @@ class _InputClusterState extends State<InputCluster> {
         MaterialPageRoute(
           builder: (context) => const InfiniteeriumPurchaseScreen(),
         ),
-      );
+      ).then((_) {
+        // Refresh token balance when returning from purchase screen
+        if (mounted) {
+          setState(() {
+            // Trigger rebuild to update send button state
+          });
+        }
+      });
       return;
     }
 

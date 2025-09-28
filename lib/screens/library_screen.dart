@@ -84,7 +84,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _refreshAccountInfo() async {
     try {
       final userId = await SecureAuthManager.getUserId();
-      await SecureApiService.getAccountInfo(userId);
+      final account = await SecureApiService.getAccountInfo(userId);
+      await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
     } catch (e) {
       debugPrint('Failed to refresh account info on library page: $e');
     }
@@ -259,7 +260,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       // Refresh account balance before entering purchase screen
                       try {
                         final userId = await SecureAuthManager.getUserId();
-                        await SecureApiService.getAccountInfo(userId);
+                        final account = await SecureApiService.getAccountInfo(userId);
+                        await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
                       } catch (e) {
                         debugPrint('Failed to refresh account info before purchase: $e');
                       }
@@ -809,7 +811,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final userId = await SecureAuthManager.getUserId();
       debugPrint('🔄 Got userId: $userId');
 
-      await SecureApiService.getAccountInfo(userId);
+      final account = await SecureApiService.getAccountInfo(userId);
+      await IFEStateManager.saveAccountData(account.tokenBalance, account.accountHashCode);
       debugPrint(
           '✅ Account call succeeded! ConnectivityService.isConnected = ${ConnectivityService.instance.isConnected}');
 
