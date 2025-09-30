@@ -5,6 +5,7 @@ import 'services/theme_service.dart';
 import 'services/background_data_service.dart';
 import 'services/token_purchase_service.dart';
 import 'services/debug_service.dart';
+import 'services/secure_api_service.dart';
 import 'screens/library_screen.dart';
 import 'widgets/smooth_scroll_behavior.dart';
 
@@ -65,7 +66,7 @@ class InfiniteerApp extends StatelessWidget {
               ? ThemeService.darkTheme 
               : ThemeService.lightTheme,
           child: MaterialApp(
-            title: 'Infiniteer',
+            title: kWebAppMode ? 'Infiniteer Now' : 'Infiniteer',
             debugShowCheckedModeBanner: false,
             theme: ThemeService.lightTheme,
             darkTheme: ThemeService.darkTheme,

@@ -7,6 +7,7 @@ import '../models/story_metadata.dart';
 import '../widgets/cached_cover_image.dart';
 import '../widgets/infinity_loading.dart';
 import '../widgets/smooth_scroll_behavior.dart';
+import '../widgets/web_app_mode_modal.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../services/catalog_service.dart';
 import '../services/state_manager.dart';
@@ -52,6 +53,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     // Listen for connectivity changes and start timer if disconnected
     ConnectivityService.instance.addListener(_onConnectivityChanged);
     _checkAndStartConnectivityTimer();
+
+    // Show web app mode modal if enabled
+    if (kWebAppMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        WebAppModeModal.show(context);
+      });
+    }
   }
 
   @override
@@ -225,7 +233,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: Row(
                 children: [
                   Text(
-                    '∞ ${_catalog?.appTitle ?? 'Infiniteer'}',
+                    '∞ ${_catalog?.appTitle ?? (kWebAppMode ? 'Infiniteer Now' : 'Infiniteer')}',
                     style: TextStyle(
                       color: Theme.of(context).appBarTheme.foregroundColor,
                       fontWeight: FontWeight.bold,

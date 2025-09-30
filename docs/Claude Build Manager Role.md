@@ -1,7 +1,7 @@
 # Claude Build Manager Role Documentation
 
 ## Overview
-I am the designated Android Build Manager for the Infiniteer Flutter app. This document contains all procedures, file locations, and configurations needed to manage Android builds and Google Play Store deployments.
+I am the designated Build Manager for the Infiniteer Flutter app. This document contains all procedures, file locations, and configurations needed to manage Android builds, web deployments, and app store submissions.
 
 ## Project Structure & Key Files
 
@@ -28,7 +28,8 @@ E:\projects\IFE\Google_Keys\
 ```
 build\app\outputs\
 ├── flutter-apk\app-release.apk         # APK builds (testing)
-└── bundle\release\app-release.aab      # App Bundle (Play Store)
+├── bundle\release\app-release.aab      # App Bundle (Play Store)
+└── web\                                # Web build output (production web app)
 ```
 
 ## Current Configuration
@@ -79,6 +80,100 @@ flutter build appbundle --release
 
 # Check connected devices
 "C:\Users\Lou\AppData\Local\Android\Sdk\platform-tools\adb.exe" devices
+```
+
+## Web Production Builds
+
+### Web Build Configuration
+- **App Name**: Infiniteer Now (web version)
+- **Deployment URL**: `https://infiniteer.com/app/`
+- **Base HREF**: `/app/` (required for subdirectory hosting)
+- **Web Mode Flag**: `WEB_APP_MODE=true` (enables web-specific features)
+
+### Web Production Build Command
+```bash
+# Full production web build with all flags
+flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true
+
+# Output location
+build\web\
+```
+
+### What WEB_APP_MODE Does
+The `--dart-define=WEB_APP_MODE=true` flag enables:
+- **Different catalog endpoint**: Uses `catalog_web` instead of `catalog` API endpoint
+- **App title change**: Shows "Infiniteer Now" instead of "Infiniteer"
+- **Web-specific optimizations**: Future web-only features and configurations
+
+Defined in: `lib/services/secure_api_service.dart:10`
+
+### Web Deployment Process
+1. **Build production web app**:
+   ```bash
+   flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true
+   ```
+
+2. **Copy to web server**:
+   ```bash
+   xcopy build\web\* [server-path]\app\ /E /I /Y
+   ```
+   - `/E` - Copy all subdirectories including empty ones
+   - `/I` - Assume destination is a directory
+   - `/Y` - Suppress overwrite confirmation
+
+3. **Verify deployment**:
+   - Navigate to `https://infiniteer.com/app/`
+   - App should load with "Infiniteer Now" title
+   - Check browser console for any errors
+
+### Web Build Output Contents
+```
+build\web\
+├── index.html              # Main entry point (auto-served from /app/)
+├── manifest.json           # PWA configuration
+├── favicon.png             # Browser favicon
+├── flutter.js              # Flutter bootstrap
+├── main.dart.js            # Compiled app (~4MB)
+├── icons\                  # App icons (192x192, 512x512)
+├── splash\                 # Splash screens
+├── assets\                 # All app assets
+│   ├── animations\         # Lottie animations
+│   ├── catalog\            # Story catalog JSON
+│   ├── dictionaries\       # Spell check dictionary (181KB)
+│   ├── fonts\              # Michroma font
+│   ├── icons\              # IcoMoon icon font
+│   └── images\             # App images
+└── canvaskit\              # Flutter rendering engine
+```
+
+### Web Platform Differences
+**Features NOT Available on Web:**
+- In-app purchases (IAP disabled via `kIsWeb` checks)
+- Native spell check visual feedback (engine works, no underlines)
+- Native file system access
+- Platform-specific plugins
+
+**Web-Specific Behavior:**
+- Image caching uses browser-native caching (not CachedNetworkImage)
+- API calls to `catalog_web` endpoint when WEB_APP_MODE=true
+- Title shows "Infiniteer Now" to differentiate from mobile apps
+
+### Web Server Requirements
+- **HTTPS required**: Flutter secure storage and PWA features need SSL
+- **CORS configured**: Azure API must allow requests from `infiniteer.com`
+- **Base path**: App must be accessible at `/app/` subdirectory
+- **Index serving**: Web server must serve `index.html` for directory requests
+
+### Testing Web Builds Locally
+```bash
+# Development build (localhost:7161 backend)
+flutter build web --profile --web-renderer html
+
+# Test with local server
+cd build\web
+python -m http.server 8000
+
+# Access at: http://localhost:8000
 ```
 
 ## Version Management Procedure
@@ -163,6 +258,7 @@ storeFile=E:\\projects\\IFE\\Google_Keys\\infiniteer-release-key.jks
 # Version increment (manual edit)
 # pubspec.yaml: version: 1.0.0+X → version: 1.0.0+X+1
 
+# ===== ANDROID BUILDS =====
 # Play Store build
 flutter build appbundle --release
 
@@ -175,6 +271,14 @@ adb install -r app-release.apk
 # Check devices
 adb devices
 
+# ===== WEB BUILDS =====
+# Production web build (infiniteer.com/app/)
+flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true
+
+# Development web build
+flutter build web --profile --web-renderer html
+
+# ===== MAINTENANCE =====
 # Clean everything
 flutter clean
 
@@ -210,7 +314,10 @@ cd android && ./gradlew --stop
 
 ---
 
-**Build Manager Role**: Handle all Android builds, version management, and Play Store deployments for Infiniteer app.
+**Build Manager Role**: Handle all builds (Android, iOS, Web), version management, and deployment for Infiniteer app.
 
-**Current Build Command**: `flutter build appbundle --release`
-**Upload File**: `build\app\outputs\bundle\release\app-release.aab`
+**Android Build Command**: `flutter build appbundle --release`
+**Android Upload File**: `build\app\outputs\bundle\release\app-release.aab`
+
+**Web Build Command**: `flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true`
+**Web Upload Location**: `build\web\` → Copy to `infiniteer.com/app/`

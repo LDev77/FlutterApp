@@ -17,6 +17,15 @@
       "toolArgs": ["--web-port=3000"]
     },
     {
+      "name": "Infiniteer Web App Mode (Port 3300)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": ["--web-port=3300"],
+      "args": ["--dart-define=WEB_APP_MODE=true"]
+    },
+    {
       "name": "Infiniteer (Profile)",
       "request": "launch", 
       "type": "dart",

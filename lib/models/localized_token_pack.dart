@@ -39,6 +39,22 @@ class LocalizedTokenPack {
     return '';
   }
 
+  /// Get numeric price value for calculations (returns null if unavailable)
+  double? getNumericPrice() {
+    // Try to get from product details first
+    if (productDetails != null) {
+      // ProductDetails has rawPrice (double) for numeric calculations
+      return productDetails!.rawPrice;
+    }
+
+    // Try to parse fallback price (e.g., "$2.99" -> 2.99)
+    if (fallbackPrice != null) {
+      return double.tryParse(fallbackPrice!.replaceAll('\$', '').replaceAll(',', ''));
+    }
+
+    return null;
+  }
+
 
   /// Check if pricing is available for display
   bool get hasPricing {

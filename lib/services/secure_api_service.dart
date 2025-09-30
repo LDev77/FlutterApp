@@ -6,6 +6,9 @@ import 'secure_auth_manager.dart';
 import '../models/api_models.dart';
 import 'connectivity_service.dart';
 
+// Web app mode: set via --dart-define=WEB_APP_MODE=true for production web builds
+const bool kWebAppMode = bool.fromEnvironment('WEB_APP_MODE', defaultValue: false);
+
 class SecureApiService {
   // Dynamic base URL - use localhost for web debug, Azure for everything else
   static String get baseUrl {
@@ -120,8 +123,9 @@ class SecureApiService {
   static Future<Map<String, dynamic>> getCatalog(String userId) async {
     try {
       final request = CatalogRequest(userId: userId);
+      final catalogEndpoint = kWebAppMode ? 'catalog_web' : 'catalog';
       final response = await http.post(
-        Uri.parse('$baseUrl/catalog'),
+        Uri.parse('$baseUrl/$catalogEndpoint'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

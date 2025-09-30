@@ -42,10 +42,28 @@ class LanguageService {
   /// Get current language in memory
   static String getCurrentLanguage() => _currentLanguage;
 
-  /// Lookup a string by its English text
+  /// Lookup a string by its English text (uses first 50 characters)
   /// MUST return the input string if no translation found (fallback behavior)
   static String getString(String englishText) {
-    return _strings[englishText] ?? englishText; // Always fallback to input string
+    // Use first 50 characters for lookup
+    final lookupKey = englishText.length > 50
+        ? englishText.substring(0, 50)
+        : englishText;
+
+    // Find all matching keys
+    final matches = _strings.entries
+        .where((entry) => entry.key.startsWith(lookupKey))
+        .toList();
+
+    if (matches.isEmpty) {
+      return englishText; // Fallback to input string
+    }
+
+    if (matches.length > 1) {
+      debugPrint('⚠️ WARNING: Multiple translations found for key starting with "$lookupKey". Using first match. Found keys: ${matches.map((e) => e.key).toList()}');
+    }
+
+    return matches.first.value;
   }
 
   /// Load language strings into memory
