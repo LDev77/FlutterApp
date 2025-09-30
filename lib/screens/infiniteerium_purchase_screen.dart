@@ -283,12 +283,13 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
       child: Stack(
         children: [
           Card(
-            elevation: pack.isPopular ? 8 : 4,
+            elevation: 4,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: pack.isPopular 
-                ? BorderSide(color: Colors.purple, width: 2)
-                : BorderSide.none,
+              side: BorderSide(
+                color: pack.color.withOpacity(0.5),
+                width: 2,
+              ),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
@@ -428,9 +429,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _serviceInitialized
-                    ? 'All purchases are secure and processed through your app store.'
-                    : 'Connecting to app store...',
+                  kWebAppMode
+                    ? 'All purchases are secure and processed through Stripe.'
+                    : (_serviceInitialized
+                        ? 'All purchases are secure and processed through your app store.'
+                        : 'Connecting to app store...'),
                   style: TextStyle(
                     fontSize: 14,
                     color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),

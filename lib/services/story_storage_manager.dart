@@ -36,7 +36,7 @@ class StoryStorageManager {
       
       return true;
     } catch (e) {
-      debugPrint('Error deleting last turn: $e');
+      print('Error deleting last turn: $e');
       return false;
     }
   }
@@ -59,7 +59,7 @@ class StoryStorageManager {
       
       return true;
     } catch (e) {
-      debugPrint('Error deleting entire playthrough: $e');
+      print('Error deleting entire playthrough: $e');
       return false;
     }
   }
