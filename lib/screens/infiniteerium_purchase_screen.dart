@@ -470,59 +470,37 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     });
 
     try {
-      // Set up purchase callbacks
-      TokenPurchaseService.instance.onPurchaseSuccess = (productId, tokensAdded, newBalance) {
-        if (mounted && _currentPurchase?.id == productId) {
-          Navigator.of(context).pop(); // Close waiting dialog
-          _showPurchaseSuccessDialog(_currentPurchase!, tokensAdded, newBalance);
-          _currentPurchase = null;
+      // Web app mode: Use Stripe checkout
+      if (kWebAppMode) {
+        final success = await TokenPurchaseService.instance.buyTokenPackWeb(pack.id);
+
+        if (!success) {
+          throw Exception('Failed to open checkout');
         }
-      };
 
-      TokenPurchaseService.instance.onPurchaseError = (productId, error) {
-        if (mounted && _currentPurchase?.id == productId) {
-          Navigator.of(context).pop(); // Close waiting dialog
-          _showPurchaseErrorDialog(error);
-          _currentPurchase = null;
-        }
-      };
+        // No UI - just opened popup, monitoring silently
+        debugPrint('Stripe checkout opened for ${pack.id}');
 
-      // Show initial loading dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const InfinityLoading.small(
-                size: 60,
-                showMessage: false,
-              ),
-              const SizedBox(height: 16),
-              const Text('Initiating purchase...'),
-            ],
-          ),
-        ),
-      );
+      } else {
+        // Native app mode: Use in-app purchase
+        // Set up purchase callbacks
+        TokenPurchaseService.instance.onPurchaseSuccess = (productId, tokensAdded, newBalance) {
+          if (mounted && _currentPurchase?.id == productId) {
+            Navigator.of(context).pop(); // Close waiting dialog
+            _showPurchaseSuccessDialog(_currentPurchase!, tokensAdded, newBalance);
+            _currentPurchase = null;
+          }
+        };
 
-      // Check if service is initialized
-      if (!_serviceInitialized) {
-        throw Exception('Purchase service not available');
-      }
+        TokenPurchaseService.instance.onPurchaseError = (productId, error) {
+          if (mounted && _currentPurchase?.id == productId) {
+            Navigator.of(context).pop(); // Close waiting dialog
+            _showPurchaseErrorDialog(error);
+            _currentPurchase = null;
+          }
+        };
 
-      // Attempt purchase
-      final success = await TokenPurchaseService.instance.buyTokenPack(pack.id);
-
-      if (!success) {
-        throw Exception('Purchase initiation failed');
-      }
-
-      // Close initial dialog and show waiting dialog
-      if (mounted) Navigator.of(context).pop();
-
-      // Show waiting for completion dialog
-      if (mounted) {
+        // Show initial loading dialog
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -531,35 +509,76 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
               mainAxisSize: MainAxisSize.min,
               children: [
                 const InfinityLoading.small(
-                  size: 80,
+                  size: 60,
                   showMessage: false,
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Completing purchase...',
-                  style: TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Please wait while we validate your purchase',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                const SizedBox(height: 16),
+                const Text('Initiating purchase...'),
               ],
             ),
           ),
         );
+
+        // Check if service is initialized
+        if (!_serviceInitialized) {
+          throw Exception('Purchase service not available');
+        }
+
+        // Attempt purchase
+        final success = await TokenPurchaseService.instance.buyTokenPack(pack.id);
+
+        if (!success) {
+          throw Exception('Purchase initiation failed');
+        }
+
+        // Close initial dialog and show waiting dialog
+        if (mounted) Navigator.of(context).pop();
+
+        // Show waiting for completion dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const InfinityLoading.small(
+                    size: 80,
+                    showMessage: false,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Completing purchase...',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please wait while we validate your purchase',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
       }
 
     } catch (e) {
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
+      // Close loading dialog (if any)
+      if (mounted && !kWebAppMode) Navigator.of(context).pop();
 
-      // Show error dialog
-      _showPurchaseErrorDialog('Purchase initiation failed. Please try again.');
+      // Show error dialog for web mode
+      if (kWebAppMode && mounted) {
+        _showPurchaseErrorDialog('Failed to open checkout. Please try again.');
+      } else if (!kWebAppMode && mounted) {
+        _showPurchaseErrorDialog('Purchase initiation failed. Please try again.');
+      }
+
       _currentPurchase = null;
     } finally {
       if (mounted) {

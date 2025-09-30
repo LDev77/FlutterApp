@@ -4,9 +4,14 @@ import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:async';
 import 'state_manager.dart';
 import 'secure_auth_manager.dart';
+import 'secure_api_service.dart';
 import '../models/localized_token_pack.dart';
+
+// Conditional import for web platform
+import 'dart:html' as html;
 
 class TokenPurchaseService {
   // Product IDs for app stores
@@ -248,6 +253,108 @@ class TokenPurchaseService {
       final productDetails = getProductById(pack.id);
       return pack.copyWith(productDetails: productDetails);
     }).toList();
+  }
+
+  /// Buy token pack via Stripe web checkout (web app mode only)
+  Future<bool> buyTokenPackWeb(String productId) async {
+    if (!kWebAppMode) {
+      debugPrint('buyTokenPackWeb called but not in web app mode');
+      return false;
+    }
+
+    try {
+      // Get user ID
+      final userId = await SecureAuthManager.getUserId();
+
+      // Call backend to create Stripe checkout session
+      final apiUrl = (kDebugMode && kIsWeb)
+          ? 'https://localhost:7161/api/purchase/create-checkout-session'
+          : 'https://infiniteer.azurewebsites.net/api/purchase/create-checkout-session';
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'userId': userId,
+          'tokenPackage': productId,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+        final checkoutUrl = responseData['checkoutUrl'] as String?;
+
+        if (checkoutUrl == null || checkoutUrl.isEmpty) {
+          debugPrint('No checkout URL received from server');
+          return false;
+        }
+
+        // Open Stripe checkout in new window
+        final popup = html.window.open(checkoutUrl, '_blank');
+
+        // Start silent monitoring for success/cancellation
+        _monitorCheckoutWindow(popup, userId);
+
+        return true;
+      } else {
+        debugPrint('Failed to create checkout session: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error creating Stripe checkout: $e');
+      return false;
+    }
+  }
+
+  /// Monitor popup window for payment completion
+  void _monitorCheckoutWindow(html.WindowBase? popup, String userId) {
+    if (popup == null) {
+      debugPrint('Popup window is null, cannot monitor');
+      return;
+    }
+
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      try {
+        // Check if popup is closed
+        if (popup.closed == true) {
+          timer.cancel();
+          debugPrint('Checkout window closed by user');
+          return;
+        }
+
+        // Check if popup navigated to success URL
+        try {
+          final locationStr = popup.location?.toString() ?? '';
+          if (locationStr.contains('payment-success')) {
+            timer.cancel();
+            popup.close();
+            debugPrint('Payment success detected, refreshing balance');
+
+            // Silently refresh balance
+            _refreshBalanceAfterPayment(userId);
+          }
+        } catch (e) {
+          // Expected - cross-origin security during Stripe checkout
+          // Silently ignore
+        }
+      } catch (e) {
+        debugPrint('Error monitoring checkout window: $e');
+        timer.cancel();
+      }
+    });
+  }
+
+  /// Refresh user balance after successful payment
+  Future<void> _refreshBalanceAfterPayment(String userId) async {
+    try {
+      await SecureApiService.getAccountInfo(userId);
+      debugPrint('Balance refreshed after payment');
+    } catch (e) {
+      debugPrint('Failed to refresh balance after payment: $e');
+    }
   }
 }
 
