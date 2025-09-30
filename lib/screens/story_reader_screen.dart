@@ -128,21 +128,21 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
 
   Future<void> _loadStoryPlaythrough() async {
     // 1) ALWAYS start with local storage first - use modern chunked storage
-    print('DEBUG: Checking chunked storage for story ID: "${widget.story.id}"');
+    debugPrint('DEBUG: Checking chunked storage for story ID: "${widget.story.id}"');
     var savedPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
 
-    print('DEBUG: Storage result: ${savedPlaythrough != null ? "FOUND with ${savedPlaythrough!.turnHistory.length} turns" : "NOT FOUND"}');
+    debugPrint('DEBUG: Storage result: ${savedPlaythrough != null ? "FOUND with ${savedPlaythrough!.turnHistory.length} turns" : "NOT FOUND"}');
 
     if (savedPlaythrough != null) {
       // Found complete playthrough data
-      print('Found complete local storage for ${widget.story.id} with ${savedPlaythrough.turnHistory.length} turns');
+      debugPrint('Found complete local storage for ${widget.story.id} with ${savedPlaythrough.turnHistory.length} turns');
       _playthrough = savedPlaythrough;
 
       // Check if story is completed - if so, go to cover page instead of last turn
       final isCompleted = IFEStateManager.isPlaythroughCompleted(widget.story.id, 'main');
       final targetPage = isCompleted ? 0 : _playthrough!.turnHistory.length;
 
-      print('Story ${widget.story.id} completed: $isCompleted, navigating to page $targetPage');
+      debugPrint('Story ${widget.story.id} completed: $isCompleted, navigating to page $targetPage');
 
       setState(() {
         _currentPage = targetPage;
@@ -154,19 +154,19 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       return; // Important: return early to avoid the API call path
     } else {
       // No local data - create placeholder to show cover page first
-      print('No local storage for ${widget.story.id} - creating placeholder for cover page');
+      debugPrint('No local storage for ${widget.story.id} - creating placeholder for cover page');
 
       // SAFETY CHECK: Double-check modern storage before overwriting
       var doubleCheckPlaythrough = IFEStateManager.getCompleteStoryStateFromChunks(widget.story.id);
       if (doubleCheckPlaythrough != null) {
-        print('SAFETY: Found existing data on double-check! Using existing ${doubleCheckPlaythrough.turnHistory.length} turns');
+        debugPrint('SAFETY: Found existing data on double-check! Using existing ${doubleCheckPlaythrough.turnHistory.length} turns');
         _playthrough = doubleCheckPlaythrough;
 
         // Check if story is completed - if so, go to cover page instead of last turn
         final isCompleted = IFEStateManager.isPlaythroughCompleted(widget.story.id, 'main');
         final targetPage = isCompleted ? 0 : doubleCheckPlaythrough!.turnHistory.length;
 
-        print('Story ${widget.story.id} completed (safety check): $isCompleted, navigating to page $targetPage');
+        debugPrint('Story ${widget.story.id} completed (safety check): $isCompleted, navigating to page $targetPage');
 
         setState(() {
           _currentPage = targetPage;
@@ -190,7 +190,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
         _currentPage = 0; // Stay on cover page
       });
 
-      print('Placeholder created - showing cover page, waiting for user to begin');
+      debugPrint('Placeholder created - showing cover page, waiting for user to begin');
     }
   }
 
@@ -229,11 +229,11 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
       // Progress is tracked in PlaythroughMetadata, not StoryMetadata
       // StoryMetadata will be refreshed by CatalogService when story closes
 
-      print('Initialized story ${widget.story.id} with introduction turn');
+      debugPrint('Initialized story ${widget.story.id} with introduction turn');
       setState(() {}); // Refresh UI with new story data
 
     } catch (e) {
-      print('Failed to initialize story ${widget.story.id}: $e');
+      debugPrint('Failed to initialize story ${widget.story.id}: $e');
       _showErrorDialog('Unable to load story',
         'Could not connect to the server. Please check your internet connection and try again.');
     }
@@ -706,7 +706,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   void _handleTestStoryInput(String input) {
-    print('Test story input: $input');
+    debugPrint('Test story input: $input');
     _inputController.clear();
     _inputFocusNode.unfocus();
     
@@ -719,7 +719,7 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   }
 
   Future<void> _handleApiStoryInput(String input) async {
-    print('API story input: $input');
+    debugPrint('API story input: $input');
 
     // Set loading state
     setState(() {
@@ -932,12 +932,12 @@ class _StoryReaderScreenState extends State<StoryReaderScreen> {
   @override
   // DEBUG: Temporary debug method - remove after debugging
   void debugCurrentStory() {
-    print('=== DEBUG CURRENT STORY ===');
+    debugPrint('=== DEBUG CURRENT STORY ===');
     GlobalPlayService.debugStoryMetadata(widget.story.id);
     GlobalPlayService.debugPlaythroughMetadata(widget.story.id);
     GlobalPlayService.debugAllTurns(widget.story.id);
     GlobalPlayService.debugStoryState(widget.story.id);
-    print('=== END DEBUG ===');
+    debugPrint('=== END DEBUG ===');
   }
 
   // DEBUG: Auto-trigger debug on hot reload

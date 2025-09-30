@@ -105,8 +105,8 @@ class LocalizedTokenPack {
         fallbackPrice: '\$6.99',
       ),
       LocalizedTokenPack(
-        id: 'tokens_power_50',
-        name: 'Power Pack',
+        id: 'tokens_best_50',
+        name: 'Best Pack',
         tokens: 50,
         description: 'Great value for avid readers',
         color: Colors.orange,
@@ -114,8 +114,8 @@ class LocalizedTokenPack {
         fallbackPrice: '\$12.99',
       ),
       LocalizedTokenPack(
-        id: 'tokens_ultimate_100',
-        name: 'Ultimate Pack',
+        id: 'tokens_mega_100',
+        name: 'Mega Pack',
         tokens: 100,
         description: 'Maximum value for power users',
         color: Colors.green,

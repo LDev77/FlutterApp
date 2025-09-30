@@ -260,7 +260,7 @@ class _InputClusterState extends State<InputCluster> {
 
   Future<void> _initializeSpellCheck() async {
     try {
-      print('📝 Initializing custom spell check...');
+      debugPrint('📝 Initializing custom spell check...');
 
       // Load dictionary from assets
       String content = await rootBundle.loadString('assets/dictionaries/en_words.txt');
@@ -277,9 +277,9 @@ class _InputClusterState extends State<InputCluster> {
         });
       }
 
-      print('📝 Spell check initialized with ${content.split('\n').length} words');
+      debugPrint('📝 Spell check initialized with ${content.split('\n').length} words');
     } catch (e) {
-      print('❌ Failed to initialize spell check: $e');
+      debugPrint('❌ Failed to initialize spell check: $e');
       // Continue without spell check
       if (mounted) {
         setState(() {

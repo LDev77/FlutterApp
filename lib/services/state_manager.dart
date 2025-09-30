@@ -86,10 +86,10 @@ class IFEStateManager {
           turns.add(turn);
           // print('DEBUG: Loaded turn ${turn.turnNumber} successfully');
         } else {
-          print('WARNING: Turn key "$key" has null data');
+          debugPrint('WARNING: Turn key "$key" has null data');
         }
       } catch (e) {
-        print('ERROR: Failed to load turn from key "$key": $e');
+        debugPrint('ERROR: Failed to load turn from key "$key": $e');
         // Continue loading other turns - don't let one bad turn break everything
       }
     }
@@ -114,13 +114,13 @@ class IFEStateManager {
     // Use provided playthroughId or try to find the most recent active playthrough
     final actualPlaythroughId = playthroughId ?? _getDefaultPlaythroughId(storyId);
     if (actualPlaythroughId == null) {
-      print('DEBUG: No playthrough found for story $storyId');
+      debugPrint('DEBUG: No playthrough found for story $storyId');
       return null;
     }
-    
+
     final turns = loadTurns(storyId, actualPlaythroughId);
     if (turns.isEmpty) {
-      print('DEBUG: No chunked turns found for story $storyId, playthrough $actualPlaythroughId');
+      debugPrint('DEBUG: No chunked turns found for story $storyId, playthrough $actualPlaythroughId');
       return null;
     }
     
@@ -165,8 +165,8 @@ class IFEStateManager {
     );
     
     await savePlaythroughMetadata(metadata);
-    print('DEBUG: Created new playthrough - Story: $storyId, ID: $playthroughId, Name: "$saveName"');
-    
+    debugPrint('DEBUG: Created new playthrough - Story: $storyId, ID: $playthroughId, Name: "$saveName"');
+
     return metadata;
   }
   
@@ -413,8 +413,8 @@ class IFEStateManager {
     for (final turnKey in keysToDelete) {
       await turnsBox.delete(turnKey);
     }
-    
-    print('DEBUG: Deleted playthrough $playthroughId for story $storyId (${keysToDelete.length} turns)');
+
+    debugPrint('DEBUG: Deleted playthrough $playthroughId for story $storyId (${keysToDelete.length} turns)');
   }
   
   /// Generate a unique playthrough ID
@@ -447,7 +447,7 @@ class IFEStateManager {
       );
       
       await savePlaythroughMetadata(legacyPlaythrough);
-      print('DEBUG: Created metadata for legacy playthrough: $storyId/main');
+      debugPrint('DEBUG: Created metadata for legacy playthrough: $storyId/main');
       return legacyPlaythrough;
     }
     
@@ -633,7 +633,7 @@ class IFEStateManager {
     for (final metadata in box.values) {
       final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
       if (needsRecovery != null) {
-        print('Recovering stale state for story: ${metadata.storyId} (reason: ${needsRecovery.reason})');
+        debugPrint('Recovering stale state for story: ${metadata.storyId} (reason: ${needsRecovery.reason})');
         // Update PlaythroughMetadata instead of StoryMetadata
         final playthroughMetadata = getPlaythroughMetadata(metadata.storyId, 'main');
         if (playthroughMetadata != null) {
@@ -687,7 +687,7 @@ class IFEStateManager {
       final cutoffTime = DateTime.now().subtract(const Duration(minutes: 2, seconds: 30));
       final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
       if (needsRecovery != null) {
-        print('Recovering story state for $storyId: ${needsRecovery.reason}');
+        debugPrint('Recovering story state for $storyId: ${needsRecovery.reason}');
         // Update PlaythroughMetadata instead of StoryMetadata
         final playthroughMetadata = getPlaythroughMetadata(storyId, 'main');
         if (playthroughMetadata != null) {
@@ -711,7 +711,7 @@ class IFEStateManager {
       if (metadata.status == 'pending') {
         final needsRecovery = await _shouldRecoverStoryState(metadata, cutoffTime);
         if (needsRecovery != null) {
-          print('Force recovery for story: ${metadata.storyId} (${needsRecovery.reason})');
+          debugPrint('Force recovery for story: ${metadata.storyId} (${needsRecovery.reason})');
           // Update PlaythroughMetadata instead of StoryMetadata
           final playthroughMetadata = getPlaythroughMetadata(metadata.storyId, 'main');
           if (playthroughMetadata != null) {

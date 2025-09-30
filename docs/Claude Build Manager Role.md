@@ -93,11 +93,14 @@ flutter build appbundle --release
 ### Web Production Build Command
 ```bash
 # Full production web build with all flags
-flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true
+# IMPORTANT: Use MSYS_NO_PATHCONV=1 on Windows/Git Bash to prevent path conversion
+MSYS_NO_PATHCONV=1 flutter build web --release --base-href=/app/ --dart-define=WEB_APP_MODE=true
 
 # Output location
 build\web\
 ```
+
+**Windows/Git Bash Gotcha**: Without `MSYS_NO_PATHCONV=1`, Git Bash converts `/app/` to `C:/Program Files/Git/app/` which breaks the build. This environment variable disables automatic path conversion.
 
 ### What WEB_APP_MODE Does
 The `--dart-define=WEB_APP_MODE=true` flag enables:
@@ -110,10 +113,10 @@ Defined in: `lib/services/secure_api_service.dart:10`
 ### Web Deployment Process
 1. **Build production web app**:
    ```bash
-   flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true
+   MSYS_NO_PATHCONV=1 flutter build web --release --base-href=/app/ --dart-define=WEB_APP_MODE=true
    ```
 
-2. **Copy to web server**:
+2. **Copy to web server** (required after EVERY build - not incremental):
    ```bash
    xcopy build\web\* [server-path]\app\ /E /I /Y
    ```
@@ -167,7 +170,7 @@ build\web\
 ### Testing Web Builds Locally
 ```bash
 # Development build (localhost:7161 backend)
-flutter build web --profile --web-renderer html
+flutter build web --profile
 
 # Test with local server
 cd build\web
@@ -175,6 +178,18 @@ python -m http.server 8000
 
 # Access at: http://localhost:8000
 ```
+
+### Common Web Build Issues
+
+**Problem**: `--base-href` error "should start and end with /"
+**Cause**: Git Bash converts `/app/` to Windows path `C:/Program Files/Git/app/`
+**Solution**: Use `MSYS_NO_PATHCONV=1` prefix
+
+**Problem**: Need to redeploy after every build
+**Reason**: Flutter always outputs to `build\web\` (local), not your server
+**Solution**: Use xcopy or create a deployment script to automate copy process
+
+**Note**: `--web-renderer` flag was removed in recent Flutter versions (no longer needed)
 
 ## Version Management Procedure
 
@@ -273,10 +288,10 @@ adb devices
 
 # ===== WEB BUILDS =====
 # Production web build (infiniteer.com/app/)
-flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true
+MSYS_NO_PATHCONV=1 flutter build web --release --base-href=/app/ --dart-define=WEB_APP_MODE=true
 
 # Development web build
-flutter build web --profile --web-renderer html
+flutter build web --profile
 
 # ===== MAINTENANCE =====
 # Clean everything
@@ -319,5 +334,5 @@ cd android && ./gradlew --stop
 **Android Build Command**: `flutter build appbundle --release`
 **Android Upload File**: `build\app\outputs\bundle\release\app-release.aab`
 
-**Web Build Command**: `flutter build web --release --web-renderer html --base-href "/app/" --dart-define=WEB_APP_MODE=true`
-**Web Upload Location**: `build\web\` → Copy to `infiniteer.com/app/`
+**Web Build Command**: `MSYS_NO_PATHCONV=1 flutter build web --release --base-href=/app/ --dart-define=WEB_APP_MODE=true`
+**Web Upload Location**: `build\web\` → Copy to `infiniteer.com/app/` (xcopy required after every build)

@@ -277,6 +277,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
   }
 
   Widget _buildTokenPackCard(LocalizedTokenPack pack) {
+    debugPrint('🎴 Building card for ${pack.id} - isPurchaseAvailable: ${pack.isPurchaseAvailable}, kWebAppMode: $kWebAppMode');
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Stack(
@@ -291,7 +292,10 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: pack.isPurchaseAvailable ? () => _purchaseTokenPack(pack) : null,
+              onTap: (kWebAppMode || pack.isPurchaseAvailable) ? () {
+                debugPrint('🔘 Token pack button tapped: ${pack.id}');
+                _purchaseTokenPack(pack);
+              } : null,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -462,6 +466,10 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
   }
 
   Future<void> _purchaseTokenPack(LocalizedTokenPack pack) async {
+    debugPrint('💰 _purchaseTokenPack called for pack: ${pack.id}');
+    debugPrint('💰 _isLoading: $_isLoading');
+    debugPrint('💰 kWebAppMode: $kWebAppMode');
+
     if (_isLoading) return;
 
     setState(() {
@@ -471,7 +479,9 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
 
     try {
       // Web app mode: Use Stripe checkout
+      debugPrint('💰 Checking kWebAppMode: $kWebAppMode');
       if (kWebAppMode) {
+        debugPrint('💰 Calling buyTokenPackWeb...');
         final success = await TokenPurchaseService.instance.buyTokenPackWeb(pack.id);
 
         if (!success) {

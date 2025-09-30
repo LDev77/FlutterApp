@@ -75,11 +75,11 @@ class InfinityLoading extends StatelessWidget {
       repeat: true,
       animate: true,
       errorBuilder: (context, error, stackTrace) {
-        print('🚨 Lottie Error: $error');
+        debugPrint('🚨 Lottie Error: $error');
         return _buildFallbackLoader(context);
       },
       onLoaded: (composition) {
-        print('✅ Lottie loaded successfully: ${composition.duration}');
+        debugPrint('✅ Lottie loaded successfully: ${composition.duration}');
       },
     );
   }

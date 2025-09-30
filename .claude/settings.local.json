@@ -42,7 +42,12 @@
       "Bash(del nul)",
       "Bash(unzip:*)",
       "Bash(keytool:*)",
-      "Bash(./generate_keystore.bat)"
+      "Bash(./generate_keystore.bat)",
+      "Bash(cmd /c flutter build:*)",
+      "Bash(flutter.bat build:*)",
+      "Bash(MSYS_NO_PATHCONV=1 flutter build web --release --base-href=/app/ --dart-define=WEB_APP_MODE=true)",
+      "Bash(del libservicesweb_utils_stub.dart)",
+      "Bash(del libservicesweb_utils_web.dart)"
     ],
     "deny": [],
     "ask": []

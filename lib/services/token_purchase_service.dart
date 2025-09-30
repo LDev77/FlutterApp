@@ -5,27 +5,25 @@ import 'package:uuid/uuid.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
+import 'dart:html' as html;
 import 'state_manager.dart';
 import 'secure_auth_manager.dart';
 import 'secure_api_service.dart';
 import '../models/localized_token_pack.dart';
-
-// Conditional import for web platform
-import 'dart:html' as html;
 
 class TokenPurchaseService {
   // Product IDs for app stores
   // These need to be created in App Store Connect and Google Play Console
   static const String _tokenStarter10 = 'tokens_starter_10';    // $2.99
   static const String _tokenPopular25 = 'tokens_popular_25';   // $6.99
-  static const String _tokenPower50 = 'tokens_power_50';       // $12.99
-  static const String _tokenUltimate100 = 'tokens_ultimate_100'; // $24.99
+  static const String _tokenBest50 = 'tokens_best_50';         // $12.99
+  static const String _tokenMega100 = 'tokens_mega_100';       // $24.99
 
   static const Set<String> _productIds = {
     _tokenStarter10,
     _tokenPopular25,
-    _tokenPower50,
-    _tokenUltimate100,
+    _tokenBest50,
+    _tokenMega100,
   };
 
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -209,9 +207,9 @@ class TokenPurchaseService {
         return 10;
       case _tokenPopular25:
         return 25;
-      case _tokenPower50:
+      case _tokenBest50:
         return 50;
-      case _tokenUltimate100:
+      case _tokenMega100:
         return 100;
       default:
         return 0;
@@ -257,19 +255,26 @@ class TokenPurchaseService {
 
   /// Buy token pack via Stripe web checkout (web app mode only)
   Future<bool> buyTokenPackWeb(String productId) async {
+    debugPrint('🛒 buyTokenPackWeb called for productId: $productId');
+    debugPrint('🛒 kWebAppMode: $kWebAppMode');
+
     if (!kWebAppMode) {
-      debugPrint('buyTokenPackWeb called but not in web app mode');
+      debugPrint('❌ buyTokenPackWeb called but not in web app mode');
       return false;
     }
 
     try {
+      debugPrint('🛒 Getting user ID...');
       // Get user ID
       final userId = await SecureAuthManager.getUserId();
+      debugPrint('🛒 User ID: ${userId.substring(0, 8)}...');
 
       // Call backend to create Stripe checkout session
       final apiUrl = (kDebugMode && kIsWeb)
           ? 'https://localhost:7161/api/purchase/create-checkout-session'
           : 'https://infiniteer.azurewebsites.net/api/purchase/create-checkout-session';
+
+      debugPrint('🛒 Calling API: $apiUrl');
 
       final response = await http.post(
         Uri.parse(apiUrl),
