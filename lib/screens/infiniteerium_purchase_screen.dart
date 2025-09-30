@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../services/state_manager.dart';
 import '../services/connectivity_service.dart';
 import '../services/token_purchase_service.dart';
@@ -8,6 +9,7 @@ import '../widgets/infinity_loading.dart';
 import '../widgets/payment_success_modal.dart';
 import '../widgets/payment_error_modal.dart';
 import '../icons/custom_icons.dart';
+import '../models/localized_token_pack.dart';
 import 'info_modal_screen.dart';
 
 class InfiniteeriumPurchaseScreen extends StatefulWidget {
@@ -19,53 +21,22 @@ class InfiniteeriumPurchaseScreen extends StatefulWidget {
 
 class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScreen> {
   bool _isLoading = false;
-  TokenPack? _currentPurchase;
+  LocalizedTokenPack? _currentPurchase;
   bool _serviceInitialized = false;
-  
-  final List<TokenPack> _tokenPacks = [
-    TokenPack(
-      id: 'tokens_starter_10',
-      name: 'Starter Pack',
-      tokens: 10,
-      price: '\$2.99',
-      description: 'Perfect for trying new stories',
-      color: Colors.blue,
-      isPopular: false,
-    ),
-    TokenPack(
-      id: 'tokens_popular_25',
-      name: 'Popular Pack',
-      tokens: 25,
-      price: '\$6.99',
-      description: 'Most popular choice',
-      color: Colors.purple,
-      isPopular: true,
-    ),
-    TokenPack(
-      id: 'tokens_power_50',
-      name: 'Power Pack',
-      tokens: 50,
-      price: '\$12.99',
-      description: 'Great value for avid readers',
-      color: Colors.orange,
-      isPopular: false,
-    ),
-    TokenPack(
-      id: 'tokens_ultimate_100',
-      name: 'Ultimate Pack',
-      tokens: 100,
-      price: '\$24.99',
-      description: 'Maximum value for power users',
-      color: Colors.green,
-      isPopular: false,
-    ),
-  ];
+  List<LocalizedTokenPack> _tokenPacks = [];
 
   @override
   void initState() {
     super.initState();
+    _loadTokenPacks();
     _initializePurchaseService();
     _refreshAccountInfo();
+  }
+
+  void _loadTokenPacks() {
+    setState(() {
+      _tokenPacks = TokenPurchaseService.instance.getLocalizedTokenPacks();
+    });
   }
 
   Future<void> _initializePurchaseService() async {
@@ -77,6 +48,8 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         });
         if (initialized) {
           debugPrint('Purchase service initialized with ${TokenPurchaseService.instance.availableProducts.length} products');
+          // Reload token packs with updated product details
+          _loadTokenPacks();
         } else {
           debugPrint('Purchase service initialization failed');
         }
@@ -84,6 +57,8 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
         setState(() {
           _serviceInitialized = true;
         });
+        // Reload token packs with existing product details
+        _loadTokenPacks();
       }
     } catch (e) {
       debugPrint('Error initializing purchase service: $e');
@@ -301,7 +276,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     );
   }
 
-  Widget _buildTokenPackCard(TokenPack pack) {
+  Widget _buildTokenPackCard(LocalizedTokenPack pack) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Stack(
@@ -316,7 +291,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: _serviceInitialized ? () => _purchaseTokenPack(pack) : null,
+              onTap: pack.isPurchaseAvailable ? () => _purchaseTokenPack(pack) : null,
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -375,11 +350,11 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          _getDisplayPrice(pack),
+                          pack.getDisplayPrice(isDev: kDebugMode),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: _serviceInitialized ? Colors.purple : Colors.grey,
+                            color: pack.hasPricing ? Colors.purple : Colors.grey,
                           ),
                         ),
                         if (pack.tokens >= 25) ...[
@@ -463,30 +438,30 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     );
   }
 
-  int _calculateSavings(TokenPack pack) {
-    // Calculate savings compared to the base $2.99/10 tokens rate
+  int _calculateSavings(LocalizedTokenPack pack) {
+    // Calculate savings compared to the base rate
+    final numericPrice = pack.getNumericPrice();
+    if (numericPrice == null) {
+      // Fallback to parsing fallback price
+      if (pack.fallbackPrice != null) {
+        final fallbackNumeric = double.tryParse(pack.fallbackPrice!.replaceAll('\$', ''));
+        if (fallbackNumeric != null) {
+          final baseRate = 2.99 / 10; // $0.299 per token
+          final packRate = fallbackNumeric / pack.tokens;
+          final savings = ((baseRate - packRate) / baseRate * 100).round();
+          return savings > 0 ? savings : 0;
+        }
+      }
+      return 0;
+    }
+
     final baseRate = 2.99 / 10; // $0.299 per token
-    final packRate = _getPriceValue(pack.price) / pack.tokens;
+    final packRate = numericPrice / pack.tokens;
     final savings = ((baseRate - packRate) / baseRate * 100).round();
     return savings > 0 ? savings : 0;
   }
 
-  double _getPriceValue(String price) {
-    return double.parse(price.replaceAll('\$', ''));
-  }
-
-  String _getDisplayPrice(TokenPack pack) {
-    // Try to get real store price first, fallback to hardcoded price
-    if (TokenPurchaseService.instance.isInitialized) {
-      final storePrice = TokenPurchaseService.instance.getFormattedPrice(pack.id);
-      if (storePrice != 'N/A') {
-        return storePrice;
-      }
-    }
-    return pack.price; // Fallback to hardcoded price
-  }
-
-  Future<void> _purchaseTokenPack(TokenPack pack) async {
+  Future<void> _purchaseTokenPack(LocalizedTokenPack pack) async {
     if (_isLoading) return;
 
     setState(() {
@@ -595,7 +570,7 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
     }
   }
 
-  void _showPurchaseSuccessDialog(TokenPack pack, int tokensAdded, int newBalance) {
+  void _showPurchaseSuccessDialog(LocalizedTokenPack pack, int tokensAdded, int newBalance) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -649,14 +624,14 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
 
   void _showTestSuccessDialog() async {
     final currentTokens = IFEStateManager.getTokens() ?? 0;
-    final testPack = TokenPack(
+    final testPack = LocalizedTokenPack(
       id: 'tokens_popular_25',
       name: 'Popular Pack',
       tokens: 25,
-      price: '\$6.99',
       description: 'Most popular choice',
       color: Colors.purple,
       isPopular: true,
+      fallbackPrice: '\$6.99',
     );
 
     // Actually add the tokens for testing purposes
@@ -706,22 +681,3 @@ class _InfiniteeriumPurchaseScreenState extends State<InfiniteeriumPurchaseScree
   }
 }
 
-class TokenPack {
-  final String id;
-  final String name;
-  final int tokens;
-  final String price;
-  final String description;
-  final Color color;
-  final bool isPopular;
-
-  const TokenPack({
-    required this.id,
-    required this.name,
-    required this.tokens,
-    required this.price,
-    required this.description,
-    required this.color,
-    required this.isPopular,
-  });
-}

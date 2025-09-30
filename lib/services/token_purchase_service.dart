@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'state_manager.dart';
 import 'secure_auth_manager.dart';
+import '../models/localized_token_pack.dart';
 
 class TokenPurchaseService {
   // Product IDs for app stores
@@ -237,6 +238,16 @@ class TokenPurchaseService {
   String getFormattedPrice(String productId) {
     final product = getProductById(productId);
     return product?.price ?? 'N/A';
+  }
+
+  // Get localized token packs with store pricing
+  List<LocalizedTokenPack> getLocalizedTokenPacks() {
+    final defaultPacks = LocalizedTokenPack.getDefaultPacks();
+
+    return defaultPacks.map((pack) {
+      final productDetails = getProductById(pack.id);
+      return pack.copyWith(productDetails: productDetails);
+    }).toList();
   }
 }
 

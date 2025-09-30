@@ -43,6 +43,8 @@ dependencies:
   
   # In-App Purchases
   in_app_purchase: ^3.1.13
+  in_app_purchase_storekit: ^0.4.4
+  in_app_purchase_android: ^0.4.0+3
   
   # HTTP Communication
   http: ^1.2.2
